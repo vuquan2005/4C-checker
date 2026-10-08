@@ -11,8 +11,31 @@ export {
     savePreviewToFile,
 } from './cad/preview-extractor.js';
 
+// Network (MyBB HTTP Client)
+export {
+    fetchThreadPage,
+    extractTotalPages,
+    fetchAllThreadPages,
+    type MyBbClientOptions,
+    type FetchAllPagesOptions,
+    type ThreadPageResult,
+} from './network/mybb-client.js';
+
+// Parser (DOM to Plain Text, Sanitized Links & Image URLs)
+export {
+    htmlToPlainText,
+    parsePostEditSummary,
+    parsePostElement,
+    parseThreadPosts,
+    isImageUrl,
+    cleanUrlString,
+} from './parser/thread-parser.js';
+
 // Types
 export * from './types/index.js';
+
+// Environment Cookie Loader
+export { getMyBbCookie, loadEnvSafely } from './env.js';
 
 // Utilities
 export { Logger, createLogger, setGlobalLogLevel, getGlobalLogLevel } from './utils/logger.js';
