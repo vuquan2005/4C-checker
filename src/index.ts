@@ -11,7 +11,7 @@ export {
     savePreviewToFile,
 } from './cad/preview-extractor.js';
 
-// Network (MyBB HTTP Client)
+// Network (MyBB HTTP Client & Image Downloader)
 export {
     fetchThreadPage,
     extractTotalPages,
@@ -20,6 +20,14 @@ export {
     type FetchAllPagesOptions,
     type ThreadPageResult,
 } from './network/mybb-client.js';
+export {
+    downloadImage,
+    downloadImages,
+    type ImageDownloadTask,
+    type DownloadImageResult,
+    type ImageDownloadOptions,
+    type BatchDownloadOptions,
+} from './network/image-downloader.js';
 
 // Parser (DOM to Plain Text, Sanitized Links & Image URLs)
 export {
