@@ -4,21 +4,29 @@ import {
     parsePostEditSummary,
     parseThreadPosts,
     isImageUrl,
+    isImageHostViewerUrl,
     cleanUrlString,
 } from './thread-parser.js';
 
 describe('Thread Parser (HTML to Plain Text, Sanitized Links & Images)', () => {
-    describe('isImageUrl', () => {
+    describe('isImageUrl & isImageHostViewerUrl', () => {
         it('identifies image URLs by file extension', () => {
             expect(isImageUrl('https://example.com/drawing.png')).toBe(true);
             expect(isImageUrl('https://example.com/photo.JPG')).toBe(true);
             expect(isImageUrl('https://example.com/image.webp?w=500')).toBe(true);
+            expect(isImageUrl('https://i.postimg.cc/3wrqsgyx/image.png')).toBe(true);
         });
 
-        it('identifies image hosting domains even without extensions', () => {
-            expect(isImageUrl('https://postimg.cc/PCcKZvzg')).toBe(true);
-            expect(isImageUrl('https://i.postimg.cc/3wrqsgyx/image.png')).toBe(true);
-            expect(isImageUrl('https://imgur.com/gallery/abc1234')).toBe(true);
+        it('rejects image hosting domains without file extensions from isImageUrl', () => {
+            expect(isImageUrl('https://postimg.cc/PCcKZvzg')).toBe(false);
+            expect(isImageUrl('https://imgur.com/gallery/abc1234')).toBe(false);
+        });
+
+        it('identifies image hosting viewer domains without extensions via isImageHostViewerUrl', () => {
+            expect(isImageHostViewerUrl('https://postimg.cc/PCcKZvzg')).toBe(true);
+            expect(isImageHostViewerUrl('https://imgur.com/gallery/abc1234')).toBe(true);
+            // Direct image with extension is not a viewer landing page
+            expect(isImageHostViewerUrl('https://i.postimg.cc/3wrqsgyx/image.png')).toBe(false);
         });
 
         it('returns false for non-image links', () => {
@@ -28,6 +36,7 @@ describe('Thread Parser (HTML to Plain Text, Sanitized Links & Images)', () => {
                 )
             ).toBe(false);
             expect(isImageUrl('https://github.com/my-repo/project')).toBe(false);
+            expect(isImageHostViewerUrl('https://github.com/my-repo/project')).toBe(false);
         });
     });
 
@@ -112,7 +121,7 @@ describe('Thread Parser (HTML to Plain Text, Sanitized Links & Images)', () => {
             expect(post.warnings).toHaveLength(0);
         });
 
-        it('separates image URLs from document links even when images are wrapped in <a> tags', () => {
+        it('separates image URLs from document links without duplicating viewer URL when images are wrapped in <a> tags', () => {
             const html = `
 <div class="post" id="post_1002">
   <div class="post_head"><div class="float_right"><strong><a>#3</a></strong></div><span class="post_date">10-01-2026</span></div>
@@ -126,10 +135,41 @@ describe('Thread Parser (HTML to Plain Text, Sanitized Links & Images)', () => {
             const posts = parseThreadPosts(html);
             const post = posts[0];
 
-            // Only Google Drive is in links; postimg viewer URL and pic.png are in imageUrls
+            // Only Google Drive is in links; only direct pic.png is in imageUrls (no duplicate postimg viewer URL)
             expect(post.links).toEqual(['https://drive.google.com/drive/folders/folder_xyz']);
-            expect(post.imageUrls).toContain('https://i.postimg.cc/sample/pic.png');
-            expect(post.imageUrls).toContain('https://postimg.cc/view123');
+            expect(post.imageUrls).toEqual(['https://i.postimg.cc/sample/pic.png']);
+        });
+
+        it('extracts standalone direct image link with extension when not wrapping an <img> tag', () => {
+            const html = `
+<div class="post" id="post_1002b">
+  <div class="post_head"><div class="float_right"><strong><a>#3</a></strong></div><span class="post_date">10-01-2026</span></div>
+  <div class="post_author"><div class="author_information"><span class="largetext"><a href="member.php?uid=6666">Student_Beta</a></span></div></div>
+  <div class="post_body">
+    Xem ảnh: <a href="https://i.postimg.cc/sample/drawing.png">Bấm vào đây để xem ảnh</a>
+  </div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            expect(posts[0].imageUrls).toEqual(['https://i.postimg.cc/sample/drawing.png']);
+            expect(posts[0].warnings).toEqual([]);
+        });
+
+        it('rejects standalone image viewer page without extension and flags INVALID_IMAGE_URL', () => {
+            const html = `
+<div class="post" id="post_1002c">
+  <div class="post_head"><div class="float_right"><strong><a>#3</a></strong></div><span class="post_date">10-01-2026</span></div>
+  <div class="post_author"><div class="author_information"><span class="largetext"><a href="member.php?uid=6666">Student_Beta</a></span></div></div>
+  <div class="post_body">
+    Xem ảnh: <a href="https://postimg.cc/view123">Bấm vào đây để xem ảnh</a>
+  </div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            // Viewer landing pages without extension are excluded from imageUrls and links
+            expect(posts[0].imageUrls).toEqual([]);
+            expect(posts[0].links).toEqual([]);
+            expect(posts[0].warnings).toContain('INVALID_IMAGE_URL');
         });
 
         it('extracts plain-text or broken BBCode URLs into links and adds UNRENDERED_URL warning', () => {
@@ -170,6 +210,116 @@ describe('Thread Parser (HTML to Plain Text, Sanitized Links & Images)', () => {
 
             expect(post.links).toEqual(['https://drive.google.com/drive/folders/plaintext_folder']);
             expect(post.warnings).toEqual(['UNRENDERED_URL']);
+        });
+
+        it('detects unrendered image URLs and broken BBCode tags even if a rendered <img> also exists in post', () => {
+            const html = `
+<div class="post" id="post_2001">
+  <div class="post_head"><div class="float_right"><strong><a>#2</a></strong></div><span class="post_date">10-01-2026</span></div>
+  <div class="post_author"><div class="author_information"><span class="largetext"><a href="member.php?uid=27380">Nguyen_Tien_Dat</a></span></div></div>
+  <div class="post_body">
+    Link ảnh: [/url]<br />
+    [url=https://i.postimg.cc/9MgpW1VJ/Screenshot-(20).png]<img src="https://i.postimg.cc/9MgpW1VJ/Screenshot-(20).png" class="mycode_img">
+  </div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            const post = posts[0];
+
+            expect(post.warnings).toContain('UNRENDERED_URL');
+            expect(post.warnings).toContain('MALFORMED_BBCODE');
+            expect(post.imageUrls).toEqual(['https://i.postimg.cc/9MgpW1VJ/Screenshot-(20).png']);
+        });
+
+        it('extracts direct post permalink (postUrl) from the index post anchor', () => {
+            const html = `
+<div class="post" id="post_26106">
+  <div class="post_head">
+    <div class="float_right"><strong><a href="showthread.php?tid=1336&amp;pid=26106#pid26106">#5</a></strong></div>
+    <span class="post_date">10-01-2026</span>
+  </div>
+  <div class="post_body">Nội dung bài viết #5</div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            expect(posts).toHaveLength(1);
+            expect(posts[0].postId).toBe('26106');
+            expect(posts[0].postNumber).toBe(5);
+            expect(posts[0].postUrl).toBe(
+                'https://kisu4chaui.com/showthread.php?tid=1336&pid=26106#pid26106'
+            );
+        });
+
+        it('supports custom baseUrl when resolving postUrl and author links', () => {
+            const html = `
+<div class="post" id="post_999">
+  <div class="post_head">
+    <div class="float_right"><strong><a href="showthread.php?tid=50&amp;pid=999#pid999">#1</a></strong></div>
+    <span class="post_date">10-01-2026</span>
+  </div>
+  <div class="post_author">
+    <a href="member.php?uid=123">User</a>
+  </div>
+  <div class="post_body">Hello</div>
+</div>
+            `;
+            const posts = parseThreadPosts(html, 'https://myforum.org');
+            expect(posts[0].postUrl).toBe(
+                'https://myforum.org/showthread.php?tid=50&pid=999#pid999'
+            );
+            expect(posts[0].author.uid).toBe('123');
+        });
+
+        it('automatically detects baseUrl from author links in post without passing baseUrl', () => {
+            const html = `
+<div class="post" id="post_555">
+  <div class="post_head">
+    <div class="float_right"><strong><a href="showthread.php?tid=99&amp;pid=555#pid555">#1</a></strong></div>
+    <span class="post_date">10-01-2026</span>
+  </div>
+  <div class="post_author">
+    <a href="https://autodetected-forum.com/member.php?uid=777">User</a>
+  </div>
+  <div class="post_body">Auto detect test</div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            expect(posts[0].postUrl).toBe(
+                'https://autodetected-forum.com/showthread.php?tid=99&pid=555#pid555'
+            );
+        });
+
+        it('automatically detects baseUrl from forum logo link', () => {
+            const html = `
+<div id="logo">
+  <a href="https://another-domain.vn/index.php">Logo</a>
+</div>
+<div class="post" id="post_666">
+  <div class="post_head">
+    <div class="float_right"><strong><a href="showthread.php?tid=12&amp;pid=666#pid666">#2</a></strong></div>
+    <span class="post_date">10-01-2026</span>
+  </div>
+  <div class="post_body">Nav auto detect test</div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            expect(posts[0].postUrl).toBe(
+                'https://another-domain.vn/showthread.php?tid=12&pid=666#pid666'
+            );
+        });
+
+        it('falls back to pid URL if index anchor href is # or missing', () => {
+            const html = `
+<div class="post" id="post_888">
+  <div class="post_head">
+    <div class="float_right"><strong><a href="#">#2</a></strong></div>
+    <span class="post_date">10-01-2026</span>
+  </div>
+  <div class="post_body">Fallback test</div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            expect(posts[0].postUrl).toBe('https://kisu4chaui.com/showthread.php?pid=888#pid888');
         });
     });
 });

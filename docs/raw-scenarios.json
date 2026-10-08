@@ -28,16 +28,7 @@
     "author": "HI TCC",
     "geometryFingerprint": {
       "totalStreams": 8,
-      "brepStreamSizes": [
-        23697,
-        362,
-        29209,
-        823,
-        7793,
-        57,
-        157,
-        350
-      ],
+      "brepStreamSizes": [23697, 362, 29209, 823, 7793, 57, 157, 350],
       "contentHash": "f4663ac2c2dfc673"
     }
   },
@@ -70,16 +61,7 @@
     "author": "HI TCC",
     "geometryFingerprint": {
       "totalStreams": 8,
-      "brepStreamSizes": [
-        23696,
-        363,
-        29226,
-        816,
-        7584,
-        57,
-        157,
-        350
-      ],
+      "brepStreamSizes": [23696, 363, 29226, 816, 7584, 57, 157, 350],
       "contentHash": "f26122fb3618e588"
     }
   },
@@ -112,16 +94,7 @@
     "author": "ádfadfwerqw",
     "geometryFingerprint": {
       "totalStreams": 8,
-      "brepStreamSizes": [
-        23701,
-        363,
-        29234,
-        816,
-        7598,
-        57,
-        157,
-        350
-      ],
+      "brepStreamSizes": [23701, 363, 29234, 816, 7598, 57, 157, 350],
       "contentHash": "33dd58782746dc46"
     }
   },
@@ -154,16 +127,7 @@
     "designer": "Minh Nguyen",
     "geometryFingerprint": {
       "totalStreams": 8,
-      "brepStreamSizes": [
-        3861,
-        363,
-        3562,
-        818,
-        7793,
-        57,
-        142,
-        350
-      ],
+      "brepStreamSizes": [3861, 363, 3562, 818, 7793, 57, 142, 350],
       "contentHash": "2007a7c05850540b"
     }
   },
@@ -196,16 +160,7 @@
     "author": "Minh Nguyen",
     "geometryFingerprint": {
       "totalStreams": 8,
-      "brepStreamSizes": [
-        3123,
-        433,
-        1813,
-        816,
-        7584,
-        57,
-        207,
-        350
-      ],
+      "brepStreamSizes": [3123, 433, 1813, 816, 7584, 57, 207, 350],
       "contentHash": "3aaca328e6a90389"
     }
   },
@@ -238,16 +193,7 @@
     "designer": "VuQuan",
     "geometryFingerprint": {
       "totalStreams": 8,
-      "brepStreamSizes": [
-        2490,
-        362,
-        1086,
-        777,
-        7594,
-        57,
-        112,
-        347
-      ],
+      "brepStreamSizes": [2490, 362, 1086, 777, 7594, 57, 112, 347],
       "contentHash": "8094603da76b1ca2"
     }
   },
@@ -280,16 +226,7 @@
     "designer": "VuQuan",
     "geometryFingerprint": {
       "totalStreams": 8,
-      "brepStreamSizes": [
-        2476,
-        362,
-        1083,
-        770,
-        7554,
-        57,
-        112,
-        345
-      ],
+      "brepStreamSizes": [2476, 362, 1083, 770, 7554, 57, 112, 345],
       "contentHash": "99356716d7d48243"
     }
   }

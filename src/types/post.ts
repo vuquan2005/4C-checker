@@ -21,6 +21,9 @@ export interface RawForumPost {
     /** Post order in thread (#1, #2, #3...) */
     postNumber: number;
 
+    /** Direct permalink URL to the post (e.g. "https://kisu4chaui.com/showthread.php?tid=1336&pid=26106#pid26106") */
+    postUrl: string;
+
     /** Is this the first post / thread starter (OP)? */
     isThreadStarter: boolean;
 

@@ -27,6 +27,7 @@ export {
     parsePostEditSummary,
     parsePostElement,
     parseThreadPosts,
+    extractBaseUrlFromDom,
     isImageUrl,
     cleanUrlString,
 } from './parser/thread-parser.js';

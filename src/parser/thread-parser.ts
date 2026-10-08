@@ -13,7 +13,7 @@ import type { PostAuthorSummary, PostEditSummary, RawForumPost } from '../types/
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i;
 
 /**
- * Known image hosting domains (both direct image CDNs and viewer landing pages)
+ * Known image hosting domains (used to detect non-direct image viewer landing pages)
  */
 const IMAGE_HOST_DOMAINS = [
     'postimg.cc',
@@ -30,18 +30,27 @@ const IMAGE_HOST_DOMAINS = [
 ];
 
 /**
- * Check if a URL points to an image file or an image host
+ * Check if a URL points directly to an image file (must have valid image extension)
  */
 export function isImageUrl(url: string): boolean {
     if (!url) return false;
     const lower = url.toLowerCase();
 
-    // 1. Check file extension
-    if (IMAGE_EXTENSIONS.test(lower)) {
-        return true;
+    // Ignore forum smilies / emoticons
+    if (lower.includes('/images/smilies/')) {
+        return false;
     }
 
-    // 2. Check known image host domain
+    // Must have standard image file extension
+    return IMAGE_EXTENSIONS.test(lower);
+}
+
+/**
+ * Check if a URL points to an image hosting viewer page without direct image extension
+ * (e.g. postimg.cc/abc, imgur.com/xyz, prnt.sc/123)
+ */
+export function isImageHostViewerUrl(url: string): boolean {
+    if (!url || isImageUrl(url)) return false;
     try {
         const parsed = new URL(url);
         const host = parsed.hostname.toLowerCase();
@@ -113,22 +122,60 @@ export function parsePostEditSummary(rawText: string): PostEditSummary | undefin
 }
 
 /**
+ * Automatically detect forum base URL from Cheerio DOM (logo link #logo a or author link)
+ */
+export function extractBaseUrlFromDom(
+    $: cheerio.CheerioAPI,
+    postEl?: ReturnType<cheerio.CheerioAPI>
+): string {
+    const candidateHref =
+        $('#logo a, .logo a').first().attr('href') ||
+        (postEl ? postEl.find('a[href*="member.php"]').first().attr('href') : undefined) ||
+        $('a[href*="member.php"]').first().attr('href');
+
+    if (candidateHref && candidateHref.startsWith('http')) {
+        try {
+            return new URL(candidateHref).origin;
+        } catch {
+            return 'https://kisu4chaui.com';
+        }
+    }
+
+    return 'https://kisu4chaui.com';
+}
+
+/**
  * Parse a single MyBB post element from Cheerio DOM
  */
 export function parsePostElement(
     postEl: ReturnType<cheerio.CheerioAPI>,
-    $: cheerio.CheerioAPI
+    $: cheerio.CheerioAPI,
+    customBaseUrl?: string
 ): RawForumPost {
+    const baseUrl = customBaseUrl || extractBaseUrlFromDom($, postEl);
     // 1. Post ID
     const rawId = postEl.attr('id') || '';
     const postIdMatch = rawId.match(/post_(\d+)/);
     const postId = postIdMatch ? postIdMatch[1] : '';
 
-    // 2. Post Number (#1, #2, #3...)
+    // 2. Post Number (#1, #2, #3...) and Direct Post URL
     const postHead = postEl.find('.post_head');
-    const postNumText = postHead.find('.float_right strong a').first().text().trim();
+    const postLinkEl = postHead.find('.float_right strong a').first();
+    const postNumText = postLinkEl.text().trim();
     const postNumber = parseInt(postNumText.replace(/[^0-9]/g, ''), 10) || 0;
     const isThreadStarter = postNumber === 1;
+
+    let postUrl = '';
+    const rawPostHref = postLinkEl.attr('href')?.trim() || '';
+    if (rawPostHref && rawPostHref !== '#' && !rawPostHref.startsWith('javascript:')) {
+        try {
+            postUrl = new URL(rawPostHref, baseUrl).href;
+        } catch {
+            postUrl = rawPostHref;
+        }
+    } else if (postId) {
+        postUrl = `${baseUrl.replace(/\/$/, '')}/showthread.php?pid=${postId}#pid${postId}`;
+    }
 
     // 3. Author Information
     const authorSection = postEl.find('.post_author');
@@ -136,7 +183,7 @@ export function parsePostElement(
     let uid = '';
     if (profileHref) {
         try {
-            const urlObj = new URL(profileHref, 'https://kisu4chaui.com');
+            const urlObj = new URL(profileHref, baseUrl);
             uid = urlObj.searchParams.get('uid') || '';
         } catch {
             const match = profileHref.match(/[?&]uid=(\d+)/);
@@ -174,22 +221,34 @@ export function parsePostElement(
     const renderedImgSrcs = new Set<string>();
     const rawUrlCandidates: string[] = [];
 
-    // URLs from rendered <a> tags
-    postBodyEl.find('a[href^="http"]').each((_, a) => {
-        const href = cleanUrlString($(a).attr('href') || '');
-        if (href) {
-            renderedAnchorHrefs.add(href);
-            rawUrlCandidates.push(href);
-        }
-    });
-
-    // URLs from rendered <img> tags
+    // URLs from rendered <img> tags (skipping forum smilies/emoticons)
     postBodyEl.find('img[src^="http"]').each((_, img) => {
-        const src = cleanUrlString($(img).attr('src') || '');
-        if (src) {
+        const $img = $(img);
+        if ($img.hasClass('smilie')) return;
+        const src = cleanUrlString($img.attr('src') || '');
+        if (src && isImageUrl(src)) {
             renderedImgSrcs.add(src);
             rawUrlCandidates.push(src);
         }
+    });
+
+    // URLs from rendered <a> tags
+    postBodyEl.find('a[href^="http"]').each((_, a) => {
+        const $a = $(a);
+        const href = cleanUrlString($a.attr('href') || '');
+        if (!href) return;
+
+        renderedAnchorHrefs.add(href);
+
+        // If this <a> tag wraps an <img> tag and the href is an image host or direct image,
+        // skip adding href to candidates to avoid duplicate image entries.
+        // The wrapped <img> already provides the direct image source.
+        const wrapsImg = $a.find('img').length > 0;
+        if (wrapsImg && (isImageUrl(href) || isImageHostViewerUrl(href))) {
+            return;
+        }
+
+        rawUrlCandidates.push(href);
     });
 
     // URLs appearing in plain text (unrendered links, plain-text paste, or broken BBCode)
@@ -197,33 +256,61 @@ export function parsePostElement(
     const textUrls = plainText.match(/https?:\/\/[^\s<>"'[\]]+/gi) || [];
     rawUrlCandidates.push(...textUrls);
 
-    // 7. Sanitize, classify, and detect unrendered URLs
+    // 7. Sanitize and classify URLs
     const otherLinks = new Set<string>();
     const imageUrls = new Set<string>();
-    let hasUnrenderedUrl = false;
+    let hasInvalidImageUrl = false;
 
     for (const raw of rawUrlCandidates) {
         const url = cleanUrlString(raw);
         if (!url || url.includes('...')) continue;
 
-        // Check if this URL was rendered into an HTML tag (<a> or <img>)
-        const isRendered = renderedAnchorHrefs.has(url) || renderedImgSrcs.has(url);
-        if (!isRendered) {
-            hasUnrenderedUrl = true;
-        }
-
         if (isImageUrl(url)) {
             imageUrls.add(url);
+        } else if (isImageHostViewerUrl(url)) {
+            // Image hosting viewer page without direct image file extension (e.g. postimg.cc/abc)
+            // Cannot be previewed directly on web or curled in one step -> flag as invalid image URL
+            hasInvalidImageUrl = true;
         } else {
             otherLinks.add(url);
         }
     }
 
-    const warnings: string[] = hasUnrenderedUrl ? ['UNRENDERED_URL'] : [];
+    // 8. Detect warnings
+    // a) Unrendered URLs in plain text:
+    //    - Any image URL in plain text is problematic (in MyBB, rendered <img> has no text,
+    //      so an image URL appearing in plainText indicates unrendered raw URL or broken BBCode)
+    //    - Any non-image URL in plain text that was NOT rendered into an <a> tag
+    let hasUnrenderedUrl = false;
+    for (const raw of textUrls) {
+        const url = cleanUrlString(raw);
+        if (!url || url.includes('...')) continue;
+
+        if (isImageUrl(url) || isImageHostViewerUrl(url)) {
+            hasUnrenderedUrl = true;
+        } else if (!renderedAnchorHrefs.has(url)) {
+            hasUnrenderedUrl = true;
+        }
+    }
+
+    // b) Malformed / leftover BBCode tags in plain text (e.g. [/url], [url=...], [/img], [img])
+    const hasMalformedBbcode = /\[\/?(?:url|img)[^\]]*\]/i.test(plainText);
+
+    const warnings: string[] = [];
+    if (hasUnrenderedUrl) {
+        warnings.push('UNRENDERED_URL');
+    }
+    if (hasInvalidImageUrl) {
+        warnings.push('INVALID_IMAGE_URL');
+    }
+    if (hasMalformedBbcode) {
+        warnings.push('MALFORMED_BBCODE');
+    }
 
     return {
         postId,
         postNumber,
+        postUrl,
         isThreadStarter,
         author,
         postDate: rawPostDate,
@@ -239,13 +326,15 @@ export function parsePostElement(
 /**
  * Parse an entire MyBB thread HTML document into RawForumPost array
  */
-export function parseThreadPosts(htmlContent: string): RawForumPost[] {
+export function parseThreadPosts(htmlContent: string, customBaseUrl?: string): RawForumPost[] {
     const $ = cheerio.load(htmlContent);
+    const baseUrl = customBaseUrl || extractBaseUrlFromDom($);
+
     const posts: RawForumPost[] = [];
 
     $('div.post').each((_, el) => {
         const postEl = $(el);
-        const post = parsePostElement(postEl, $);
+        const post = parsePostElement(postEl, $, baseUrl);
         posts.push(post);
     });
 

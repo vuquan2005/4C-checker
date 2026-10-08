@@ -335,4 +335,3 @@ Dưới đây là các giá trị thuộc tính trích xuất trực tiếp từ
   }
 }
 ```
-
