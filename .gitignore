@@ -21,6 +21,7 @@ reports/
 # Environment & credentials
 .env
 .env.*
+!.env.example
 *.local
 *.local.*
 credentials.json
