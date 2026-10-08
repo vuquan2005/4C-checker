@@ -3,9 +3,10 @@
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.expand": false,
   "explorer.fileNesting.patterns": {
-    "package.json": "package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, pnpm-workspace.yaml, .nvmrc, .node-version, .prettierrc*, .prettierignore, eslint.config.*, commitlint.config.*, tsconfig*.json, vitest.config.*, tsup.config.*",
+    "package.json": "package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, pnpm-workspace.yaml, .nvmrc, .node-version, .prettierrc*, .prettierignore, .lintstagedrc*, eslint.config.*, commitlint.config.*, tsconfig*.json, vitest.config.*, tsup.config.*",
     "README.md": "CHANGELOG*, CONTRIBUTING*, LICENSE*, PRIVACY*, REQUIREMENTS.md",
     ".gitignore": ".gitattributes, .gitmodules",
+    ".env.example": ".env*",
     "*.ts": "$(capture).d.ts, $(capture).test.ts, $(capture).spec.ts",
     "*.js": "$(capture).d.ts, $(capture).test.js, $(capture).spec.js"
   },

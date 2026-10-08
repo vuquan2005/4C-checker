@@ -21,7 +21,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepare": "husky"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
@@ -37,6 +38,8 @@
     "@types/node": "^24.18.0",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "prettier": "^3.9.9",
     "tsup": "^8.5.1",
     "tsx": "^4.23.15",
