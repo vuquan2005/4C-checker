@@ -1,0 +1,53 @@
+{
+  // File Nesting - Nhóm gọn các file cấu hình và tài liệu ở root
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "package.json": "package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, pnpm-workspace.yaml, .nvmrc, .node-version, .prettierrc*, .prettierignore, eslint.config.*, commitlint.config.*, tsconfig*.json, vitest.config.*, tsup.config.*",
+    "README.md": "CHANGELOG*, CONTRIBUTING*, LICENSE*, PRIVACY*, REQUIREMENTS.md",
+    ".gitignore": ".gitattributes, .gitmodules",
+    "*.ts": "$(capture).d.ts, $(capture).test.ts, $(capture).spec.ts",
+    "*.js": "$(capture).d.ts, $(capture).test.js, $(capture).spec.js"
+  },
+
+  // Formatting & Linting
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+
+  // Language Configurations
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 4
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 4
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.wordWrap": "on"
+  },
+
+  // Search Exclusions
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/data": true,
+    "**/reports": true,
+    "**/coverage": true
+  }
+}

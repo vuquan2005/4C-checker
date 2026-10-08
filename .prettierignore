@@ -1,0 +1,15 @@
+dist
+node_modules
+coverage
+data
+reports
+public
+*.ipt
+*.ipj
+*.iam
+*.ipn
+samples/**
+*.local.*
+.local.*
+pnpm-lock.yaml
+REQUIREMENTS.md
