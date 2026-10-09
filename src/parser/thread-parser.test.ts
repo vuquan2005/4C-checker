@@ -75,12 +75,21 @@ describe('Thread Parser (HTML to Plain Text, Sanitized Links & Images)', () => {
     });
 
     describe('parsePostEditSummary', () => {
-        it('extracts edit time and editor username', () => {
+        it('extracts edit time and editor username in Vietnamese', () => {
             const raw = '(Sửa đổi lần cuối: 09-29-2026, 10:06 PM bởi Nguyễn Văn A.)';
             const info = parsePostEditSummary(raw);
             expect(info).toBeDefined();
-            expect(info?.editedAt).toBe('09-29-2026, 10:06 PM');
+            expect(info?.editedAt).toBe('2026-09-29T22:06:00+07:00');
             expect(info?.editedBy).toBe('Nguyễn Văn A');
+        });
+
+        it('extracts edit time and editor username in English', () => {
+            const raw =
+                '(This post was last modified: 29-09-2026, 22:06 by Nguyễn Tiến Đạt_4CHaUI_K20.)';
+            const info = parsePostEditSummary(raw);
+            expect(info).toBeDefined();
+            expect(info?.editedAt).toBe('2026-09-29T22:06:00+07:00');
+            expect(info?.editedBy).toBe('Nguyễn Tiến Đạt_4CHaUI_K20');
         });
     });
 
@@ -112,7 +121,7 @@ describe('Thread Parser (HTML to Plain Text, Sanitized Links & Images)', () => {
             expect(post.postNumber).toBe(2);
             expect(post.author.username).toBe('Student_Alpha');
             expect(post.author.uid).toBe('5555');
-            expect(post.postDate).toBe('10-01-2026, 08:30 AM');
+            expect(post.postDate).toBe('2026-01-10T08:30:00+07:00');
             expect(post.links).toEqual([
                 'https://drive.google.com/file/d/assignment123/view?usp=sharing',
             ]);
@@ -320,6 +329,103 @@ describe('Thread Parser (HTML to Plain Text, Sanitized Links & Images)', () => {
             `;
             const posts = parseThreadPosts(html);
             expect(posts[0].postUrl).toBe('https://kisu4chaui.com/showthread.php?pid=888#pid888');
+        });
+
+        it('correctly parses relative dates using title attribute and preserves hours/minutes', () => {
+            const html = `
+<div class="post" id="post_26262">
+  <div class="post_head">
+    <div class="float_right"><strong><a href="showthread.php?tid=1336&amp;pid=26262#pid26262">#38</a></strong></div>
+    <span class="post_date"><span title="08-10-2026">Yesterday</span>, 00:02 <span class="post_edit" id="edited_by_26262"></span></span>
+  </div>
+  <div class="post_author">
+    <div class="author_information"><span class="largetext"><a href="member.php?uid=111">Student_Yesterday</a></span></div>
+  </div>
+  <div class="post_body">Nội dung bài viết nộp hôm qua</div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            expect(posts).toHaveLength(1);
+            expect(posts[0].postNumber).toBe(38);
+            expect(posts[0].postDate).toBe('2026-10-08T00:02:00+07:00');
+        });
+
+        it('correctly parses relative edit time using title attribute', () => {
+            const html = `
+<div class="post" id="post_3001">
+  <div class="post_head">
+    <div class="float_right"><strong><a>#1</a></strong></div>
+    <span class="post_date">29-09-2026, 18:00
+      <span class="post_edit">
+        <span class="edited_post">(This post was last modified: <span title="08-10-2026">Yesterday</span>, 10:55 by <a href="member.php?uid=222">Editor_User</a>.)</span>
+      </span>
+    </span>
+  </div>
+  <div class="post_body">Bài viết đã sửa hôm qua</div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            expect(posts).toHaveLength(1);
+            expect(posts[0].postDate).toBe('2026-09-29T18:00:00+07:00');
+            expect(posts[0].editedInfo?.editedAt).toBe('2026-10-08T10:55:00+07:00');
+            expect(posts[0].editedInfo?.editedBy).toBe('Editor_User');
+        });
+
+        it('skips deleted posts (deleted_post_hidden)', () => {
+            const html = `
+<div class="post" id="post_101">
+  <div class="post_head">
+    <div class="float_right"><strong><a>#1</a></strong></div>
+    <span class="post_date">29-09-2026, 18:00</span>
+  </div>
+  <div class="post_body">Bài hợp lệ</div>
+</div>
+<div class="post deleted_post_hidden" id="post_102">
+  <div class="deleted_post_author"><strong><a href="member.php?uid=333">User</a></strong></div>
+  <div class="post_content"><em>This post has been deleted.</em></div>
+</div>
+<div class="post" id="post_103">
+  <div class="post_head">
+    <div class="float_right"><strong><a>#3</a></strong></div>
+    <span class="post_date">30-09-2026, 10:00</span>
+  </div>
+  <div class="post_body">Bài hợp lệ tiếp theo</div>
+</div>
+            `;
+            const posts = parseThreadPosts(html);
+            expect(posts).toHaveLength(2);
+            expect(posts[0].postId).toBe('101');
+            expect(posts[1].postId).toBe('103');
+        });
+
+        it('omits rawHtml and editedInfo.raw by default, and includes them when includeRaw is true', () => {
+            const html = `
+<div class="post" id="post_201">
+  <div class="post_head">
+    <div class="float_right"><strong><a>#1</a></strong></div>
+    <span class="post_date">29-09-2026, 18:00
+      <span class="post_edit">
+        <span class="edited_post">(This post was last modified: 29-09-2026, 22:00 by Admin.)</span>
+      </span>
+    </span>
+  </div>
+  <div class="post_body"><p>Nội dung bài viết</p></div>
+</div>
+            `;
+            // 1. Default (includeRaw: false)
+            const postsDefault = parseThreadPosts(html);
+            expect(postsDefault).toHaveLength(1);
+            expect(postsDefault[0].rawHtml).toBeUndefined();
+            expect(postsDefault[0].plainText).toBe('Nội dung bài viết');
+            expect(postsDefault[0].editedInfo).toBeDefined();
+            expect(postsDefault[0].editedInfo?.raw).toBeUndefined();
+            expect(postsDefault[0].editedInfo?.editedAt).toBe('2026-09-29T22:00:00+07:00');
+            expect(postsDefault[0].editedInfo?.editedBy).toBe('Admin');
+
+            // 2. Explicitly includeRaw: true
+            const postsWithRaw = parseThreadPosts(html, { includeRaw: true });
+            expect(postsWithRaw[0].rawHtml).toBeDefined();
+            expect(postsWithRaw[0].editedInfo?.raw).toBeDefined();
         });
     });
 });

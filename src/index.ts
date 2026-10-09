@@ -50,6 +50,7 @@ export {
     extractBaseUrlFromDom,
     isImageUrl,
     cleanUrlString,
+    type ThreadParserOptions,
 } from './parser/thread-parser.js';
 
 // Types
@@ -61,6 +62,7 @@ export { getMyBbCookie, getGoogleApiKey, loadEnvSafely } from './env.js';
 // Utilities
 export { Logger, createLogger, setGlobalLogLevel, getGlobalLogLevel } from './utils/logger.js';
 export { removeDiacritics, normalizeName, stringSimilarity } from './utils/text-utils.js';
+export { parseForumDateToIso, type ParseForumDateOptions } from './utils/time-utils.js';
 export {
     ensureDir,
     readTextFileAutoEncoding,

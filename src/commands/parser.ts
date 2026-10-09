@@ -44,6 +44,11 @@ export function registerParserCommands(program: Command): void {
         )
         .option('--ignore-op', 'Bỏ qua bài viết đầu tiên (OP / Thread Starter)', true)
         .option(
+            '--raw',
+            'Bao gồm các trường dữ liệu thô (rawHtml, editedInfo.raw) trong kết quả JSON',
+            false
+        )
+        .option(
             '--summary',
             'Chỉ in thống kê tóm tắt, không hiển thị chi tiết từng bài viết',
             false
@@ -59,6 +64,7 @@ export function registerParserCommands(program: Command): void {
                     post?: string;
                     ignoreOp?: boolean;
                     summary?: boolean;
+                    raw?: boolean;
                 }
             ) => {
                 try {
@@ -110,7 +116,9 @@ export function registerParserCommands(program: Command): void {
                     }
 
                     // 2. Phân tích cú pháp bài viết
-                    let posts = parseThreadPosts(html);
+                    let posts = parseThreadPosts(html, {
+                        includeRaw: options.raw,
+                    });
 
                     if (posts.length === 0) {
                         if (!options.json) {

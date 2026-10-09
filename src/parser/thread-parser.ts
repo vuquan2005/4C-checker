@@ -6,6 +6,7 @@
  */
 import * as cheerio from 'cheerio';
 import type { PostAuthorSummary, PostEditSummary, RawForumPost } from '../types/post.js';
+import { parseForumDateToIso } from '../utils/time-utils.js';
 
 /**
  * Known image file extensions
@@ -105,20 +106,52 @@ export function htmlToPlainText(html: string): string {
 }
 
 /**
- * Parse edit metadata from .post_edit text
+ * Options for thread post parsing
  */
-export function parsePostEditSummary(rawText: string): PostEditSummary | undefined {
+export interface ThreadParserOptions {
+    /** Custom forum base URL (e.g. "https://kisu4chaui.com") */
+    baseUrl?: string;
+
+    /** Whether to include raw fields (rawHtml and editedInfo.raw). Default: false */
+    includeRaw?: boolean;
+}
+
+/**
+ * Parse edit metadata from .post_edit text (supports English and Vietnamese)
+ * Normalizes editedAt into standard ISO 8601 string
+ */
+export function parsePostEditSummary(
+    rawText: string,
+    includeRaw = false
+): PostEditSummary | undefined {
     const trimmed = rawText.trim();
     if (!trimmed) return undefined;
 
-    const timeMatch = trimmed.match(/lần\s*cuối:\s*([^bởi.)]+)/i);
-    const byMatch = trimmed.match(/bởi\s+([^.)]+)[.)]/i);
+    // Matches:
+    // English: (This post was last modified: 29-09-2026, 22:06 by Nguyễn Tiến Đạt.)
+    // Vietnamese: (Sửa đổi lần cuối: 09-29-2026, 10:06 PM bởi Nguyễn Văn A.)
+    const match = trimmed.match(
+        /(?:lần\s*cuối|last\s*modified)\s*:\s*(.+?)(?:\s+(?:bởi|by)\s+([^.)]+)|[.)]|$)/i
+    );
 
-    return {
-        raw: trimmed,
-        editedAt: timeMatch ? timeMatch[1].trim() : undefined,
-        editedBy: byMatch ? byMatch[1].trim() : undefined,
+    if (!match) {
+        return includeRaw ? { raw: trimmed } : undefined;
+    }
+
+    const rawTime = match[1]?.trim();
+    const editedBy = match[2]?.trim();
+    const editedAt = rawTime ? parseForumDateToIso(rawTime) || rawTime : undefined;
+
+    const result: PostEditSummary = {
+        editedAt,
+        editedBy,
     };
+
+    if (includeRaw) {
+        result.raw = trimmed;
+    }
+
+    return result;
 }
 
 /**
@@ -150,9 +183,15 @@ export function extractBaseUrlFromDom(
 export function parsePostElement(
     postEl: ReturnType<cheerio.CheerioAPI>,
     $: cheerio.CheerioAPI,
-    customBaseUrl?: string
+    optionsOrBaseUrl?: string | ThreadParserOptions
 ): RawForumPost {
-    const baseUrl = customBaseUrl || extractBaseUrlFromDom($, postEl);
+    const options: ThreadParserOptions =
+        typeof optionsOrBaseUrl === 'string'
+            ? { baseUrl: optionsOrBaseUrl }
+            : optionsOrBaseUrl || {};
+
+    const baseUrl = options.baseUrl || extractBaseUrlFromDom($, postEl);
+    const includeRaw = Boolean(options.includeRaw);
     // 1. Post ID
     const rawId = postEl.attr('id') || '';
     const postIdMatch = rawId.match(/post_(\d+)/);
@@ -199,15 +238,30 @@ export function parsePostElement(
 
     // 4. Post Date & Edit Info
     const postDateEl = postHead.find('.post_date');
-    const rawPostDate = postDateEl
-        .contents()
-        .first()
+
+    const editPostEl = postDateEl.find('.post_edit .edited_post');
+    let editedInfo: PostEditSummary | undefined;
+    if (editPostEl.length > 0) {
+        const editClone = editPostEl.clone();
+        editClone.find('span[title]').each((_, s) => {
+            const title = $(s).attr('title');
+            if (title) $(s).replaceWith(title);
+        });
+        editedInfo = parsePostEditSummary(editClone.text(), includeRaw);
+    }
+
+    // Extract post date (replace <span title="...">Yesterday</span> with title if present)
+    const dateClone = postDateEl.clone();
+    dateClone.find('.post_edit').remove();
+    dateClone.find('span[title]').each((_, s) => {
+        const title = $(s).attr('title');
+        if (title) $(s).replaceWith(title);
+    });
+    const rawPostDate = dateClone
         .text()
         .replace(/[,\s]+$/, '')
         .trim();
-
-    const editPostEl = postDateEl.find('.post_edit .edited_post');
-    const editedInfo = editPostEl.length > 0 ? parsePostEditSummary(editPostEl.text()) : undefined;
+    const postDate = parseForumDateToIso(rawPostDate) || rawPostDate;
 
     // 5. Post Body & Plain Text
     const postBodyEl = postEl.find('.post_body').first();
@@ -307,34 +361,60 @@ export function parsePostElement(
         warnings.push('MALFORMED_BBCODE');
     }
 
-    return {
+    const post: RawForumPost = {
         postId,
         postNumber,
         postUrl,
         isThreadStarter,
         author,
-        postDate: rawPostDate,
+        postDate,
         editedInfo,
         plainText,
         links: Array.from(otherLinks),
         imageUrls: Array.from(imageUrls),
         warnings,
-        rawHtml,
     };
+
+    if (includeRaw) {
+        post.rawHtml = rawHtml;
+    }
+
+    return post;
 }
 
 /**
  * Parse an entire MyBB thread HTML document into RawForumPost array
  */
-export function parseThreadPosts(htmlContent: string, customBaseUrl?: string): RawForumPost[] {
+export function parseThreadPosts(
+    htmlContent: string,
+    optionsOrBaseUrl?: string | ThreadParserOptions
+): RawForumPost[] {
+    const options: ThreadParserOptions =
+        typeof optionsOrBaseUrl === 'string'
+            ? { baseUrl: optionsOrBaseUrl }
+            : optionsOrBaseUrl || {};
+
     const $ = cheerio.load(htmlContent);
-    const baseUrl = customBaseUrl || extractBaseUrlFromDom($);
+    const baseUrl = options.baseUrl || extractBaseUrlFromDom($);
+    const resolvedOptions: ThreadParserOptions = {
+        ...options,
+        baseUrl,
+    };
 
     const posts: RawForumPost[] = [];
 
     $('div.post').each((_, el) => {
         const postEl = $(el);
-        const post = parsePostElement(postEl, $, baseUrl);
+        // Skip deleted post placeholders (e.g. <div class="post deleted_post_hidden">)
+        if (
+            postEl.hasClass('deleted_post_hidden') ||
+            postEl.hasClass('deleted_post') ||
+            postEl.find('.post_head').length === 0
+        ) {
+            return;
+        }
+
+        const post = parsePostElement(postEl, $, resolvedOptions);
         posts.push(post);
     });
 

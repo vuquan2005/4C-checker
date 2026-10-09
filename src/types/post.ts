@@ -9,7 +9,9 @@ export interface PostAuthorSummary {
 }
 
 export interface PostEditSummary {
-    raw: string;
+    /** Raw edit text from forum (optional, omitted when raw is disabled) */
+    raw?: string;
+    /** Standard ISO 8601 datetime string when post was last modified */
     editedAt?: string;
     editedBy?: string;
 }
@@ -30,7 +32,7 @@ export interface RawForumPost {
     /** Author username and forum UID */
     author: PostAuthorSummary;
 
-    /** Display post date (e.g. "09-29-2026, 06:00 PM") */
+    /** Standard ISO 8601 post datetime string (e.g. "2026-09-29T18:00:00+07:00") */
     postDate: string;
 
     /** Information about last edit if edited */
@@ -48,6 +50,6 @@ export interface RawForumPost {
     /** Syntax warnings (e.g. malformed BBCode tags, glued URLs, unlinked raw URLs) */
     warnings: string[];
 
-    /** Raw HTML of post body */
-    rawHtml: string;
+    /** Raw HTML of post body (optional, omitted when raw is disabled) */
+    rawHtml?: string;
 }
