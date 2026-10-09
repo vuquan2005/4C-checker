@@ -5,14 +5,14 @@
  * 2. Downloads forum BBCode images into `student_images/`
  * 3. Downloads Google Drive submissions into `drive_files/`
  * 4. Parses CAD metadata and extracts 3D previews into `cad_previews/`
- * 5. Generates and saves `post_summary.json`
+ * 5. Generates and saves `post.json`
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import type {
     ThreadPostRecord,
     PostSnapshot,
-    PostSummary,
+    PostData,
     ForumImageDownloadSummary,
     DriveDownloadSummary,
     CadFileSummary,
@@ -39,13 +39,13 @@ export interface PostWorkerOptions {
 }
 
 export interface PostWorkerResult {
-    /** Generated post summary */
-    summary: PostSummary;
+    /** Generated post data */
+    summary: PostData;
 
     /** Absolute path to post directory */
     postDir: string;
 
-    /** Absolute path to post_summary.json */
+    /** Absolute path to post.json */
     summaryPath: string;
 
     /** Updated ThreadPostRecord reflecting the ingested version */
@@ -53,7 +53,7 @@ export interface PostWorkerResult {
 }
 
 /**
- * Process a single forum post snapshot, downloading its assets and generating `post_summary.json`
+ * Process a single forum post snapshot, downloading its assets and generating `post.json`
  */
 export async function processPost(
     dataDir: string,
@@ -233,14 +233,14 @@ export async function processPost(
         }
     }
 
-    // 5. Construct PostSummary
-    const summary: PostSummary = {
+    // 5. Construct PostData
+    const summary: PostData = {
         postId: record.postId,
         postNumber: record.postNumber,
         sessionIndex,
         declaredSession: session.declaredSession,
         inferredSession: session.inferredSession,
-        sessionOverride: session.sessionOverride,
+        sessionOverride: session.sessionOverride ?? null,
         sessionSource: session.sessionSource,
         forumStatus: record.forumStatus,
         postUrl: record.postUrl,
@@ -251,14 +251,15 @@ export async function processPost(
         syncedAt: new Date().toISOString(),
         userFolder: record.userFolder,
         postFolder: record.postFolder,
+        skipProcessing: record.skipProcessing,
         forumImages,
         driveFiles: driveSummary,
         cadSummaries,
-        warnings: [...targetSnapshot.warnings, ...sessionWarnings],
+        warnings: [...new Set([...targetSnapshot.warnings, ...sessionWarnings])],
     };
 
-    // 6. Save post_summary.json
-    const summaryPath = path.join(postDir, 'post_summary.json');
+    // 6. Save post.json
+    const summaryPath = path.join(postDir, 'post.json');
     fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2), 'utf8');
 
     // 7. Update record status

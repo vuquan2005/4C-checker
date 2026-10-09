@@ -103,6 +103,9 @@ export interface ThreadPostRecord {
     /** Current sync status */
     syncStatus: PostSyncStatus;
 
+    /** Manually skip asset downloads and CAD analysis for this post. */
+    skipProcessing?: boolean;
+
     /** Current active version number (index pointer into history, e.g. 1, 2...) */
     current: number;
 
@@ -179,17 +182,18 @@ export interface CadFileSummary extends CadMetadata {
 }
 
 /**
- * Detailed summary file stored in each post folder:
- * `data/<threadId>/<userFolder>/<postFolder>/post_summary.json`
+ * Complete post data file stored in each post folder:
+ * `data/<threadId>/<userFolder>/<postFolder>/post.json`
  */
-export interface PostSummary {
+export interface PostData {
     postId: string;
     postNumber: number;
     /** Session selected for the current Drive lookup, if unambiguous. */
     sessionIndex?: number;
     declaredSession?: number;
     inferredSession?: number;
-    sessionOverride?: number;
+    /** Set this value manually and rerun preparation when session detection conflicts. */
+    sessionOverride: number | null;
     sessionSource?: SessionSource;
     forumStatus?: ForumStatus;
     postUrl: string;
@@ -200,6 +204,9 @@ export interface PostSummary {
     syncedAt: string;
     userFolder: string;
     postFolder: string;
+
+    /** Manually skip future asset downloads and CAD analysis for this post. */
+    skipProcessing?: boolean;
 
     /** BBCode images downloaded from forum post */
     forumImages: ForumImageDownloadSummary[];

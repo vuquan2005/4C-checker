@@ -114,13 +114,29 @@ describe('Thread Pipeline Orchestrator', () => {
             '999',
             'Student_Alpha_201',
             'post_101',
-            'post_summary.json'
+            'post.json'
         );
         expect(fs.existsSync(alphaSummaryPath)).toBe(true);
 
         const alphaSummary = JSON.parse(fs.readFileSync(alphaSummaryPath, 'utf8'));
         expect(alphaSummary.postId).toBe('101');
         expect(alphaSummary.currentVersion).toBe(1);
+        expect(alphaSummary.sessionOverride).toBeNull();
+        expect(needsPostAssetReprocessing(tempDir, '999', summary.manifest.posts['101'])).toBe(
+            false
+        );
+
+        alphaSummary.sessionOverride = 4;
+        fs.writeFileSync(alphaSummaryPath, JSON.stringify(alphaSummary));
+        expect(needsPostAssetReprocessing(tempDir, '999', summary.manifest.posts['101'])).toBe(
+            true
+        );
+
+        summary.manifest.posts['101'].sessionOverride = 4;
+        expect(needsPostAssetReprocessing(tempDir, '999', summary.manifest.posts['101'])).toBe(
+            false
+        );
+        expect(summary.manifest.posts['101'].sessionOverride).toBe(4);
     });
 
     it('detects a previously failed Drive summary for reprocessing', async () => {
@@ -138,7 +154,7 @@ describe('Thread Pipeline Orchestrator', () => {
             '999',
             record.userFolder,
             record.postFolder,
-            'post_summary.json'
+            'post.json'
         );
         const postSummary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
         postSummary.driveFiles = {
@@ -148,5 +164,40 @@ describe('Thread Pipeline Orchestrator', () => {
         fs.writeFileSync(summaryPath, JSON.stringify(postSummary));
 
         expect(needsPostAssetReprocessing(tempDir, '999', record)).toBe(true);
+    });
+
+    it('skips manually disabled posts even when force processing is requested', async () => {
+        const firstRun = await syncThread('999', {
+            dataDir: tempDir,
+            htmlContent: mockThreadHtml,
+            metadataOnly: false,
+            downloadDrive: false,
+            downloadImages: false,
+            extractCad: false,
+        });
+        const record = firstRun.manifest.posts['101'];
+        const summaryPath = path.join(
+            tempDir,
+            '999',
+            record.userFolder,
+            record.postFolder,
+            'post.json'
+        );
+        const postSummary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+        postSummary.skipProcessing = true;
+        fs.writeFileSync(summaryPath, JSON.stringify(postSummary));
+
+        const secondRun = await syncThread('999', {
+            dataDir: tempDir,
+            htmlContent: mockThreadHtml,
+            force: true,
+            downloadDrive: false,
+            downloadImages: false,
+            extractCad: false,
+        });
+
+        expect(secondRun.processedPostsCount).toBe(1);
+        expect(secondRun.manifest.posts['101'].postId).toBe('101');
+        expect(JSON.parse(fs.readFileSync(summaryPath, 'utf8')).skipProcessing).toBe(true);
     });
 });

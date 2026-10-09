@@ -48,7 +48,7 @@ describe('Post Ingestion Worker', () => {
         return { record, snapshot };
     };
 
-    it('creates folder structure and writes post_summary.json without network calls', async () => {
+    it('creates folder structure and writes post.json without network calls', async () => {
         const { record, snapshot } = createDummyRecord();
 
         const result = await processPost(tempDir, '999', record, snapshot, {
@@ -68,6 +68,10 @@ describe('Post Ingestion Worker', () => {
         expect(summaryContent.currentVersion).toBe(1);
         expect(summaryContent.userFolder).toBe('Student_A_5001');
         expect(summaryContent.sessionIndex).toBeUndefined();
+        expect(summaryContent.sessionOverride).toBeNull();
+        expect(summaryContent.warnings).toContain(
+            'SESSION_OVERRIDE_REQUIRED: set sessionOverride in post.json and rerun'
+        );
         expect(record.syncStatus).toBe('synced');
     });
 

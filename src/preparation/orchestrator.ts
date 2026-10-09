@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RawForumPost } from '../types/post.js';
-import type { PostSummary, ThreadManifest, ThreadPostRecord } from './types/manifest.js';
+import type { PostData, ThreadManifest, ThreadPostRecord } from './types/manifest.js';
 import {
     loadThreadManifest,
     createEmptyManifest,
@@ -72,6 +72,31 @@ export interface ThreadSyncSummary {
     durationMs: number;
 }
 
+function getPostSummaryPath(dataDir: string, threadId: string, record: ThreadPostRecord): string {
+    const postDir = path.join(dataDir, threadId, record.userFolder, record.postFolder);
+    const postPath = path.join(postDir, 'post.json');
+    return fs.existsSync(postPath) ? postPath : path.join(postDir, 'post_summary.json');
+}
+
+/** Whether a manually configured post must be excluded from asset processing. */
+export function isPostProcessingSkipped(
+    dataDir: string,
+    threadId: string,
+    record: ThreadPostRecord
+): boolean {
+    if (record.skipProcessing === true) return true;
+
+    const summaryPath = getPostSummaryPath(dataDir, threadId, record);
+    if (!fs.existsSync(summaryPath)) return false;
+
+    try {
+        const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8')) as Partial<PostData>;
+        return summary.skipProcessing === true;
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Checks whether an already-synced post has an incomplete or failed asset summary.
  * This lets normal sync repair previous failures without forcing every post.
@@ -81,28 +106,35 @@ export function needsPostAssetReprocessing(
     threadId: string,
     record: ThreadPostRecord
 ): boolean {
-    const summaryPath = path.join(
+    if (isPostProcessingSkipped(dataDir, threadId, record)) return false;
+
+    const postDataPath = path.join(
         dataDir,
         threadId,
         record.userFolder,
         record.postFolder,
-        'post_summary.json'
+        'post.json'
     );
+    const legacyPath = path.join(path.dirname(postDataPath), 'post_summary.json');
+    const dataPath = fs.existsSync(postDataPath) ? postDataPath : legacyPath;
 
     if (record.forumStatus === 'deleted') return false;
-    if (!fs.existsSync(summaryPath)) return true;
+    if (!fs.existsSync(dataPath)) return true;
 
-    let summary: Partial<PostSummary>;
+    let summary: Partial<PostData>;
     try {
-        summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8')) as Partial<PostSummary>;
+        summary = JSON.parse(fs.readFileSync(dataPath, 'utf8')) as Partial<PostData>;
     } catch {
         return true;
     }
 
+    if (summary.skipProcessing === true) return false;
+
     if (summary.postId !== record.postId) return true;
     if (summary.currentVersion !== record.current) return true;
     if (summary.sessionIndex !== record.sessionIndex) return true;
-    if (summary.sessionOverride !== record.sessionOverride) return true;
+    const summarySessionOverride = summary.sessionOverride ?? undefined;
+    if (summarySessionOverride !== record.sessionOverride) return true;
     if (!summary.driveFiles) return true;
 
     const imagePaths = (summary.forumImages || [])
@@ -235,7 +267,10 @@ export async function syncThread(
         }
 
         const candidateRecords = Object.values(manifest.posts).filter(
-            (record) => record.forumStatus !== 'deleted' && candidatePostIds.has(record.postId)
+            (record) =>
+                record.forumStatus !== 'deleted' &&
+                candidatePostIds.has(record.postId) &&
+                !isPostProcessingSkipped(dataDir, threadId, record)
         );
 
         if (candidateRecords.length > 0) {

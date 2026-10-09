@@ -47,6 +47,15 @@ export function resolveSession(
         warnings.push(`SESSION_CONFLICT:${declaredSession}->${inferredSession}`);
     }
 
+    if (
+        sessionOverride === undefined &&
+        (hasConflict ||
+            declaredSessions.length > 1 ||
+            (declaredSession === undefined && inferredSession === undefined))
+    ) {
+        warnings.push('SESSION_OVERRIDE_REQUIRED: set sessionOverride in post.json and rerun');
+    }
+
     if (sessionOverride !== undefined) {
         return {
             declaredSession,
@@ -87,6 +96,7 @@ export function resolveSession(
 export function getSessionForInference(record: {
     sessionIndex?: number;
     sessionOverride?: number;
+    inferredSession?: number;
 }): number | undefined {
-    return record.sessionOverride ?? record.sessionIndex;
+    return record.sessionOverride ?? record.sessionIndex ?? record.inferredSession;
 }

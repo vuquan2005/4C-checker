@@ -108,6 +108,26 @@ describe('Thread Manifest Manager', () => {
         expect(manifest.posts['102'].sessionWarnings).toContain('SESSION_CONFLICT:4->3');
     });
 
+    it('continues inferred sessions from the previous post even when that post is ambiguous', () => {
+        const manifest = createEmptyManifest('999');
+        const firstPost = createDummyPost('101', 2, 'Student One_K16', '1001', {
+            plainText: 'Nộp bài buổi 1',
+        });
+        const ambiguousPost = createDummyPost('102', 3, 'Student One_K16', '1001', {
+            plainText: 'Nộp bài buổi 2\nLink drive buổi 1: https://drive.example.com/old',
+        });
+        const thirdPost = createDummyPost('103', 4, 'Student One_K16', '1001', {
+            plainText: 'Nộp bài buổi 3',
+        });
+
+        syncThreadPostsIntoManifest(manifest, [firstPost, ambiguousPost, thirdPost]);
+
+        expect(manifest.posts['102'].inferredSession).toBe(2);
+        expect(manifest.posts['102'].sessionIndex).toBeUndefined();
+        expect(manifest.posts['103'].inferredSession).toBe(3);
+        expect(manifest.posts['103'].sessionIndex).toBe(3);
+    });
+
     it('marks missing posts deleted and renames their downloaded folder', () => {
         const manifest = createEmptyManifest('999');
         const post = createDummyPost('101', 2, 'Student One_K16', '1001');
