@@ -11,7 +11,7 @@ export {
     savePreviewToFile,
 } from './cad/preview-extractor.js';
 
-// Network (MyBB HTTP Client & Image Downloader)
+// Network (MyBB HTTP Client, Image Downloader & Google Drive Downloader)
 export {
     fetchThreadPage,
     extractTotalPages,
@@ -28,6 +28,18 @@ export {
     type ImageDownloadOptions,
     type BatchDownloadOptions,
 } from './network/image-downloader.js';
+export {
+    parseGDriveUrl,
+    fetchFolderItems,
+    resolveTargetFiles,
+    downloadGDriveFile,
+    downloadGDriveSubmission,
+    DEFAULT_ALLOWED_EXTENSIONS,
+    type GDriveItem,
+    type ParsedGDriveUrl,
+    type GDriveDownloadOptions,
+    type GDriveDownloadResult,
+} from './network/google-driver/index.js';
 
 // Parser (DOM to Plain Text, Sanitized Links & Image URLs)
 export {
@@ -44,9 +56,14 @@ export {
 export * from './types/index.js';
 
 // Environment Cookie Loader
-export { getMyBbCookie, loadEnvSafely } from './env.js';
+export { getMyBbCookie, getGoogleApiKey, loadEnvSafely } from './env.js';
 
 // Utilities
 export { Logger, createLogger, setGlobalLogLevel, getGlobalLogLevel } from './utils/logger.js';
 export { removeDiacritics, normalizeName, stringSimilarity } from './utils/text-utils.js';
-export { ensureDir, readTextFileAutoEncoding, findFilesByExtension } from './utils/file-utils.js';
+export {
+    ensureDir,
+    readTextFileAutoEncoding,
+    findFilesByExtension,
+    extractZipArchive,
+} from './utils/file-utils.js';

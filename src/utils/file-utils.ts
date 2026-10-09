@@ -3,6 +3,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import AdmZip from 'adm-zip';
 
 /**
  * Ensure directory exists
@@ -70,4 +71,22 @@ export function findFilesByExtension(dirPath: string, extensions: string[]): str
 
     scan(dirPath);
     return results;
+}
+
+/**
+ * Extract a ZIP archive to a destination directory
+ */
+export function extractZipArchive(
+    zipFilePath: string,
+    targetDir: string,
+    overwrite = true
+): boolean {
+    try {
+        ensureDir(targetDir);
+        const zip = new AdmZip(zipFilePath);
+        zip.extractAllTo(targetDir, overwrite);
+        return true;
+    } catch {
+        return false;
+    }
 }

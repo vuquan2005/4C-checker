@@ -36,3 +36,11 @@ export function getMyBbCookie(customCookie?: string): string | undefined {
     loadEnvSafely();
     return customCookie || process.env.MYBB_COOKIE || undefined;
 }
+
+/**
+ * Get Google API Key (from override, .env, or process.env)
+ */
+export function getGoogleApiKey(customApiKey?: string): string | undefined {
+    loadEnvSafely();
+    return customApiKey || process.env.GOOGLE_API_KEY || undefined;
+}

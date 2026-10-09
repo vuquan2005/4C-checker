@@ -8,6 +8,7 @@ import {
     fetchAllThreadPages,
     getMyBbCookie,
     ensureDir,
+    downloadGDriveSubmission,
 } from '../index.js';
 
 /**
@@ -162,6 +163,90 @@ export function registerNetworkCommands(program: Command): void {
                     }
                 } catch (err) {
                     console.error(pc.red(`\n❌ Lỗi tải thread: ${(err as Error).message}\n`));
+                    process.exit(1);
+                }
+            }
+        );
+
+    program
+        .command('download-drive')
+        .alias('drive')
+        .description(
+            'Tải bài nộp CAD từ Google Drive (hỗ trợ khớp thư mục buổi, xuyên thư mục đệm và stream trực tiếp)'
+        )
+        .argument('<drive-url>', 'URL chia sẻ Google Drive (link folder hoặc file)')
+        .option('-o, --output <dir>', 'Thư mục đích lưu file tải về', 'downloads/drive')
+        .option(
+            '-k, --keyword <keywords...>',
+            'Từ khóa ưu tiên tìm thư mục buổi (ví dụ: "buoi 1" "b1")'
+        )
+        .option('--ext <extensions...>', 'Danh sách đuôi file cho phép tải')
+        .option('--no-skip', 'Tải lại kể cả khi file đã tồn tại trên ổ đĩa')
+        .option('--no-extract', 'Không tự động giải nén file .zip sau khi tải')
+        .option('--concurrency <number>', 'Số luồng tải đồng thời', '2')
+        .option('--delay <ms>', 'Khoảng nghỉ giữa các lượt tải file (ms)', '300')
+        .action(
+            async (
+                driveUrl: string,
+                options: {
+                    output: string;
+                    keyword?: string[];
+                    ext?: string[];
+                    skip?: boolean;
+                    extract?: boolean;
+                    concurrency: string;
+                    delay: string;
+                }
+            ) => {
+                try {
+                    const destDir = path.resolve(process.cwd(), options.output);
+                    console.log(pc.bold(`\n📂 Bắt đầu tải bài nộp Google Drive:`));
+                    console.log(`- Nguồn URL:  ${pc.cyan(driveUrl)}`);
+                    console.log(`- Thư mục:    ${pc.dim(destDir)}`);
+                    if (options.keyword && options.keyword.length > 0) {
+                        console.log(`- Từ khóa:    ${pc.yellow(options.keyword.join(', '))}`);
+                    }
+
+                    const concurrency = parseInt(options.concurrency, 10) || 2;
+                    const delayMs = parseInt(options.delay, 10) || 300;
+
+                    const result = await downloadGDriveSubmission(driveUrl, destDir, {
+                        keywords: options.keyword,
+                        allowedExtensions: options.ext,
+                        skipIfExists: options.skip !== false,
+                        autoExtractZip: options.extract !== false,
+                        concurrency,
+                        delayMs,
+                        onProgress: (done, total, fileName) => {
+                            console.log(
+                                pc.dim(`  [${done}/${total}] `) + pc.green(`✓ Đã tải: ${fileName}`)
+                            );
+                        },
+                    });
+
+                    if (result.matchedFolder) {
+                        console.log(pc.cyan(`\n📁 Khớp thư mục buổi: "${result.matchedFolder}"`));
+                    }
+
+                    if (result.warnings.length > 0) {
+                        for (const w of result.warnings) {
+                            console.log(pc.yellow(`⚠️  ${w}`));
+                        }
+                    }
+
+                    if (result.success) {
+                        const totalKb = (result.totalBytes / 1024).toFixed(1);
+                        console.log(
+                            pc.green(
+                                `\n🎉 Hoàn tất! Đã tải ${result.downloadedFiles.length} file, bỏ qua ${result.skippedFiles.length} file (${totalKb} KB tổng cộng).\n`
+                            )
+                        );
+                    } else {
+                        console.error(pc.red(`\n❌ Không tải được file nào từ liên kết trên.\n`));
+                        process.exit(1);
+                    }
+                } catch (err) {
+                    console.error(pc.red(`\n❌ Lỗi tải Drive: ${(err as Error).message}\n`));
                     process.exit(1);
                 }
             }
