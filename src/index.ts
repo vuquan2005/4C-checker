@@ -60,6 +60,9 @@ export {
     type ThreadParserOptions,
 } from './parser/thread-parser.js';
 
+// Preparation & Sync Models
+export * from './preparation/index.js';
+
 // Types
 export * from './types/index.js';
 

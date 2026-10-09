@@ -135,7 +135,7 @@ export function registerParserCommands(program: Command): void {
 
                     // Lọc bỏ bài OP nếu có yêu cầu
                     if (options.ignoreOp) {
-                        posts = posts.filter((p) => !p.isThreadStarter);
+                        posts = posts.filter((p) => p.postNumber !== 1);
                     }
 
                     // Lọc theo Post ID hoặc Số thứ tự post
@@ -207,9 +207,8 @@ export function registerParserCommands(program: Command): void {
                         const authorLabel = pc.bold(p.author.username);
                         const uidLabel = p.author.uid ? pc.gray(`(uid: ${p.author.uid})`) : '';
                         const dateLabel = pc.dim(p.postDate);
-                        const starterTag = p.isThreadStarter
-                            ? pc.bgMagenta(pc.white(' OP ')) + ' '
-                            : '';
+                        const starterTag =
+                            p.postNumber === 1 ? pc.bgMagenta(pc.white(' OP ')) + ' ' : '';
 
                         console.log(
                             `\n${postNumLabel} ${starterTag}${authorLabel} ${uidLabel} • ${dateLabel} [ID: ${p.postId}]`

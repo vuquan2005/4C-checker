@@ -202,7 +202,6 @@ export function parsePostElement(
     const postLinkEl = postHead.find('.float_right strong a').first();
     const postNumText = postLinkEl.text().trim();
     const postNumber = parseInt(postNumText.replace(/[^0-9]/g, ''), 10) || 0;
-    const isThreadStarter = postNumber === 1;
 
     let postUrl = '';
     const rawPostHref = postLinkEl.attr('href')?.trim() || '';
@@ -365,7 +364,6 @@ export function parsePostElement(
         postId,
         postNumber,
         postUrl,
-        isThreadStarter,
         author,
         postDate,
         editedInfo,
