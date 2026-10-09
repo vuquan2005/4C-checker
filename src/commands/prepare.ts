@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline/promises';
+import { stdin as standardInput, stderr as standardError } from 'node:process';
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { parseThreadIdInput } from './network.js';
@@ -90,6 +92,41 @@ export function registerPrepareCommands(program: Command): void {
                         downloadImages: options.images !== false,
                         downloadDrive: options.drive !== false,
                         extractCad: options.cad !== false,
+                        onSessionConflict:
+                            options.json || !standardInput.isTTY
+                                ? undefined
+                                : async (record, declaredSession, inferredSession) => {
+                                      const prompt = readline.createInterface({
+                                          input: standardInput,
+                                          output: standardError,
+                                      });
+                                      try {
+                                          while (true) {
+                                              const answer = await prompt.question(
+                                                  `\n⚠️ Conflict session ở Post #${record.postNumber} (${record.author.username}): ` +
+                                                      `bài ghi buổi ${declaredSession}, suy luận buổi ${inferredSession}.\n` +
+                                                      `Chọn sessionOverride [${declaredSession}/${inferredSession}/s để bỏ qua]: `
+                                              );
+                                              const value = answer.trim().toLowerCase();
+                                              if (value === 's' || value === 'skip')
+                                                  return undefined;
+
+                                              const sessionOverride = Number(value);
+                                              if (
+                                                  Number.isInteger(sessionOverride) &&
+                                                  sessionOverride > 0
+                                              ) {
+                                                  return sessionOverride;
+                                              }
+
+                                              standardError.write(
+                                                  'Vui lòng nhập số buổi hợp lệ hoặc s để bỏ qua.\n'
+                                              );
+                                          }
+                                      } finally {
+                                          prompt.close();
+                                      }
+                                  },
                         onProgress: (event) => {
                             if (options.json) return;
                             if (event.type === 'post_start' && event.post) {

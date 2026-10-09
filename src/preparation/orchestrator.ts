@@ -21,6 +21,7 @@ import { processPost, type PostWorkerOptions } from './worker/post-worker.js';
 import { fetchAllThreadPages } from '../network/mybb-client.js';
 import { parseThreadPosts } from '../parser/thread-parser.js';
 import { getMyBbCookie } from '../env.js';
+import { withLogContext } from '../utils/logger.js';
 
 export interface ThreadSyncProgressEvent {
     type:
@@ -58,6 +59,13 @@ export interface ThreadSyncOptions extends PostWorkerOptions {
 
     /** Progress callback */
     onProgress?: (event: ThreadSyncProgressEvent) => void;
+
+    /** Resolve a declared/inferred session conflict before processing a post. */
+    onSessionConflict?: (
+        record: ThreadPostRecord,
+        declaredSession: number,
+        inferredSession: number
+    ) => number | undefined | Promise<number | undefined>;
 }
 
 export interface ThreadSyncSummary {
@@ -274,7 +282,47 @@ export async function syncThread(
         );
 
         if (candidateRecords.length > 0) {
+            for (const record of candidateRecords) {
+                const conflict = record.sessionWarnings?.find((warning) =>
+                    warning.startsWith('SESSION_CONFLICT:')
+                );
+                if (!conflict || record.sessionOverride !== undefined) continue;
+
+                const [declaredSession, inferredSession] = conflict
+                    .slice('SESSION_CONFLICT:'.length)
+                    .split('->')
+                    .map(Number);
+                if (!declaredSession || !inferredSession) continue;
+
+                const sessionOverride = await options.onSessionConflict?.(
+                    record,
+                    declaredSession,
+                    inferredSession
+                );
+                if (sessionOverride !== undefined) {
+                    record.sessionOverride = sessionOverride;
+                }
+            }
+            saveThreadManifest(dataDir, manifest);
+
             let currentIndex = 0;
+            let nextCompletionIndex = 0;
+            const completedTasks = new Map<number, ThreadPostRecord>();
+
+            const flushCompletedTasks = (): void => {
+                while (completedTasks.has(nextCompletionIndex)) {
+                    const completedPost = completedTasks.get(nextCompletionIndex)!;
+                    completedTasks.delete(nextCompletionIndex);
+                    options.onProgress?.({
+                        type: 'post_done',
+                        message: `Finished post #${completedPost.postNumber}`,
+                        completed: nextCompletionIndex + 1,
+                        total: candidateRecords.length,
+                        post: completedPost,
+                    });
+                    nextCompletionIndex++;
+                }
+            };
 
             const workerPool = async (): Promise<void> => {
                 while (currentIndex < candidateRecords.length) {
@@ -290,12 +338,19 @@ export async function syncThread(
                     });
 
                     try {
-                        await processPost(dataDir, threadId, record, undefined, {
-                            downloadImages: options.downloadImages,
-                            downloadDrive: options.downloadDrive,
-                            extractCad: options.extractCad,
-                            force: options.force,
-                        });
+                        await withLogContext(
+                            {
+                                post: `post#${record.postNumber} ${record.author.username}`,
+                                postUrl: record.postUrl,
+                            },
+                            () =>
+                                processPost(dataDir, threadId, record, undefined, {
+                                    downloadImages: options.downloadImages,
+                                    downloadDrive: options.downloadDrive,
+                                    extractCad: options.extractCad,
+                                    force: options.force,
+                                })
+                        );
                         processedCount++;
                     } catch (err) {
                         record.syncStatus = 'failed';
@@ -305,13 +360,8 @@ export async function syncThread(
                         );
                     }
 
-                    options.onProgress?.({
-                        type: 'post_done',
-                        message: `Finished post #${record.postNumber}`,
-                        completed: taskIndex + 1,
-                        total: candidateRecords.length,
-                        post: record,
-                    });
+                    completedTasks.set(taskIndex, record);
+                    flushCompletedTasks();
                 }
             };
 

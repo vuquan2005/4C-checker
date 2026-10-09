@@ -3,7 +3,11 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import AdmZip from 'adm-zip';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Ensure directory exists
@@ -89,6 +93,33 @@ export function extractZipArchive(
     } catch {
         return false;
     }
+}
+
+/** Extract ZIP or RAR archives based on their file signature, not only extension. */
+export async function extractArchive(
+    archivePath: string,
+    targetDir: string,
+    overwrite = true
+): Promise<'zip' | 'rar'> {
+    const header = fs.readFileSync(archivePath).subarray(0, 8);
+    const isRar = header.subarray(0, 6).toString('ascii') === 'Rar!\x1a\x07';
+
+    if (!isRar) {
+        extractZipArchive(archivePath, targetDir, overwrite);
+        return 'zip';
+    }
+
+    fs.mkdirSync(targetDir, { recursive: true });
+    let command = '7z';
+    try {
+        await execFileAsync(command, ['x', archivePath, '-y', `-o${targetDir}`]);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        command = '7zz';
+        await execFileAsync(command, ['x', archivePath, '-y', `-o${targetDir}`]);
+    }
+
+    return 'rar';
 }
 
 /**

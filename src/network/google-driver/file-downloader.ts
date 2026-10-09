@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
-import { ensureDir, extractZipArchive, archiveOldFile } from '../../utils/file-utils.js';
+import { ensureDir, extractArchive, archiveOldFile } from '../../utils/file-utils.js';
 import { createLogger } from '../../utils/logger.js';
 import { parseGDriveUrl } from './url-parser.js';
 import {
@@ -109,14 +109,17 @@ export async function downloadGDriveFile(
         fs.renameSync(tempPath, destPath);
         const stat = fs.statSync(destPath);
 
-        // Nếu file tải về là .zip và bật autoExtractZip -> tự động giải nén
-        if (autoExtractZip && path.extname(destPath).toLowerCase() === '.zip') {
+        // Detect the archive signature because Drive files are sometimes mislabeled as .zip.
+        const archiveExtensions = new Set(['.zip', '.rar']);
+        if (autoExtractZip && archiveExtensions.has(path.extname(destPath).toLowerCase())) {
             try {
                 const targetDir = path.dirname(destPath);
-                extractZipArchive(destPath, targetDir, true);
-                logger.i(`Đã tự động giải nén "${fileName}" vào ${targetDir}`);
+                const archiveType = await extractArchive(destPath, targetDir, true);
+                logger.i(
+                    `Đã tự động giải nén ${archiveType.toUpperCase()} "${fileName}" vào ${targetDir}`
+                );
             } catch (err) {
-                logger.w(`Không thể giải nén zip "${fileName}": ${(err as Error).message}`);
+                logger.w(`Không thể giải nén archive "${fileName}": ${(err as Error).message}`);
             }
         }
 

@@ -139,6 +139,40 @@ describe('Thread Pipeline Orchestrator', () => {
         expect(summary.manifest.posts['101'].sessionOverride).toBe(4);
     });
 
+    it('resolves session conflicts before processing the post', async () => {
+        const conflictHtml = mockThreadHtml
+            .replace('Student Alpha submission', 'Student Alpha submission b2')
+            .replace('Student Beta_K16', 'Student Alpha_K16')
+            .replace('uid=202', 'uid=201')
+            .replace('Student Beta submission', 'Student Alpha submission b4');
+        const conflicts: Array<[string, number, number]> = [];
+
+        const summary = await syncThread('999', {
+            dataDir: tempDir,
+            htmlContent: conflictHtml,
+            metadataOnly: false,
+            downloadDrive: false,
+            downloadImages: false,
+            extractCad: false,
+            onSessionConflict: (record, declaredSession, inferredSession) => {
+                conflicts.push([record.postId, declaredSession, inferredSession]);
+                return 3;
+            },
+        });
+
+        expect(conflicts).toEqual([['102', 4, 3]]);
+        expect(summary.manifest.posts['102'].sessionOverride).toBe(3);
+
+        const postSummaryPath = path.join(
+            tempDir,
+            '999',
+            'Student_Alpha_201',
+            'post_102',
+            'post.json'
+        );
+        expect(JSON.parse(fs.readFileSync(postSummaryPath, 'utf8')).sessionOverride).toBe(3);
+    });
+
     it('detects a previously failed Drive summary for reprocessing', async () => {
         const summary = await syncThread('999', {
             dataDir: tempDir,
