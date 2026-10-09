@@ -144,6 +144,7 @@ export async function processPost(
         try {
             const gdriveRes = await downloadGDriveSubmission(driveUrl, driveDir, {
                 incremental: !options?.force,
+                skipIfExists: !options?.force,
                 autoExtractZip: true,
                 keywords:
                     sessionIndex === undefined

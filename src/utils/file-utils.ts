@@ -110,6 +110,19 @@ export async function extractArchive(
     }
 
     fs.mkdirSync(targetDir, { recursive: true });
+    try {
+        await execFileAsync('unrar', [
+            'x',
+            overwrite ? '-o+' : '-o-',
+            '-y',
+            archivePath,
+            `${targetDir}${path.sep}`,
+        ]);
+        return 'rar';
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+
     let command = '7z';
     try {
         await execFileAsync(command, ['x', archivePath, '-y', `-o${targetDir}`]);
