@@ -9,6 +9,45 @@ export interface GDriveItem {
     sizeBytes?: number;
     isFolder: boolean;
     parentIds?: string[];
+    modifiedTime?: string;
+    md5Checksum?: string;
+}
+
+export type GDriveAccessStatus = 'public' | 'restricted' | 'not_found' | 'invalid_url';
+
+export interface GDriveSubmissionMetadata {
+    url: string;
+    type: 'file' | 'folder' | 'unknown';
+    targetFolderId?: string;
+    targetFolderName?: string;
+    accessStatus: GDriveAccessStatus;
+    accessReason?: string;
+    fetchedAt: string;
+    files: Array<{
+        id: string;
+        name: string;
+        mimeType?: string;
+        sizeBytes?: number;
+        modifiedTime?: string;
+        md5Checksum?: string;
+    }>;
+    totalFiles: number;
+    totalBytes: number;
+    warnings: string[];
+    history?: Array<{
+        fileName: string;
+        archivedPath: string;
+        archivedAt: string;
+        previousSizeBytes?: number;
+    }>;
+}
+
+export interface GDriveManifestDiff {
+    hasChanges: boolean;
+    added: GDriveItem[];
+    modified: GDriveItem[];
+    deleted: Array<{ id: string; name: string }>;
+    unchanged: GDriveItem[];
 }
 
 export interface ParsedGDriveUrl {
@@ -26,6 +65,18 @@ export interface GDriveDownloadOptions {
 
     /** Bỏ qua nếu file cục bộ đã tồn tại và có dung lượng > 0 (mặc định: true) */
     skipIfExists?: boolean;
+
+    /** Bật cơ chế đồng bộ vi sai dựa trên manifest metadata (mặc định: true) */
+    incremental?: boolean;
+
+    /** Đường dẫn lưu file manifest (mặc định: path.join(destDir, '.gdrive-manifest.json')) */
+    manifestPath?: string;
+
+    /** Tự động sao lưu phiên bản cũ vào thư mục con khi có bản cập nhật (mặc định: true) */
+    archiveOldVersions?: boolean;
+
+    /** Tên thư mục sao lưu bản cũ (mặc định: '_history', tránh trùng với 'OldVersions' của Inventor) */
+    backupDirName?: string;
 
     /** Tự động giải nén file .zip sau khi tải về (mặc định: true) */
     autoExtractZip?: boolean;
@@ -49,11 +100,16 @@ export interface GDriveDownloadOptions {
 export interface GDriveDownloadResult {
     success: boolean;
     matchedFolder?: string;
+    accessStatus?: GDriveAccessStatus;
+    hasChanges?: boolean;
     downloadedFiles: string[];
+    updatedFiles?: string[];
+    archivedFiles?: Array<{ originalPath: string; archivedPath: string }>;
     skippedFiles: string[];
-    failedFiles: { name: string; error: string }[];
+    failedFiles: { name: string; error: string; code?: string }[];
     totalBytes: number;
     warnings: string[];
+    manifest?: GDriveSubmissionMetadata;
 }
 
 export const DEFAULT_ALLOWED_EXTENSIONS = [

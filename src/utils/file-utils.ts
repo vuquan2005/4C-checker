@@ -90,3 +90,41 @@ export function extractZipArchive(
         return false;
     }
 }
+
+/**
+ * Định dạng timestamp an toàn cho tên file trên mọi hệ điều hành (YYYYMMDD_HHmmss)
+ */
+export function formatFileTimestamp(date: Date = new Date()): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    const seconds = pad(date.getSeconds());
+    return `${year}${month}${day}_${hours}${minutes}${seconds}`;
+}
+
+/**
+ * Di chuyển file cũ sang thư mục lưu trữ (backup archive) kèm hậu tố timestamp
+ * Ví dụ: 'truc_vit.ipt' -> '_history/truc_vit_20261009_133000.ipt'
+ */
+export function archiveOldFile(
+    filePath: string,
+    backupDir: string,
+    customTimestamp?: string
+): string | null {
+    if (!fs.existsSync(filePath)) return null;
+
+    ensureDir(backupDir);
+    const stat = fs.statSync(filePath);
+    const ext = path.extname(filePath);
+    const baseName = path.basename(filePath, ext);
+    const ts = customTimestamp || formatFileTimestamp(stat.mtime);
+    const backupFileName = `${baseName}_${ts}${ext}`;
+    const backupPath = path.join(backupDir, backupFileName);
+
+    // Di chuyển file cũ vào thư mục backup
+    fs.renameSync(filePath, backupPath);
+    return backupPath;
+}

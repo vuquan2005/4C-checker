@@ -34,11 +34,18 @@ export {
     resolveTargetFiles,
     downloadGDriveFile,
     downloadGDriveSubmission,
+    fetchSubmissionMetadata,
+    diffSubmissionManifest,
+    detectHtmlAccessStatus,
+    GDriveAccessError,
     DEFAULT_ALLOWED_EXTENSIONS,
     type GDriveItem,
     type ParsedGDriveUrl,
     type GDriveDownloadOptions,
     type GDriveDownloadResult,
+    type GDriveSubmissionMetadata,
+    type GDriveManifestDiff,
+    type GDriveAccessStatus,
 } from './network/google-driver/index.js';
 
 // Parser (DOM to Plain Text, Sanitized Links & Image URLs)
@@ -68,4 +75,6 @@ export {
     readTextFileAutoEncoding,
     findFilesByExtension,
     extractZipArchive,
+    formatFileTimestamp,
+    archiveOldFile,
 } from './utils/file-utils.js';

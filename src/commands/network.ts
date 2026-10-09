@@ -9,6 +9,7 @@ import {
     getMyBbCookie,
     ensureDir,
     downloadGDriveSubmission,
+    fetchSubmissionMetadata,
 } from '../index.js';
 
 /**
@@ -172,7 +173,7 @@ export function registerNetworkCommands(program: Command): void {
         .command('download-drive')
         .alias('drive')
         .description(
-            'Tải bài nộp CAD từ Google Drive (hỗ trợ khớp thư mục buổi, xuyên thư mục đệm và stream trực tiếp)'
+            'Tải bài nộp CAD từ Google Drive (hỗ trợ khớp thư mục buổi, xuyên thư mục đệm, đồng bộ vi sai và kiểm tra quyền)'
         )
         .argument('<drive-url>', 'URL chia sẻ Google Drive (link folder hoặc file)')
         .option('-o, --output <dir>', 'Thư mục đích lưu file tải về', 'downloads/drive')
@@ -183,6 +184,14 @@ export function registerNetworkCommands(program: Command): void {
         .option('--ext <extensions...>', 'Danh sách đuôi file cho phép tải')
         .option('--no-skip', 'Tải lại kể cả khi file đã tồn tại trên ổ đĩa')
         .option('--no-extract', 'Không tự động giải nén file .zip sau khi tải')
+        .option('--no-incremental', 'Tắt cơ chế đồng bộ vi sai dựa trên manifest')
+        .option('--no-backup', 'Không sao lưu phiên bản cũ sang thư mục lưu trữ khi cập nhật')
+        .option(
+            '--backup-dir <name>',
+            'Tên thư mục sao lưu bản cũ (mặc định: _history)',
+            '_history'
+        )
+        .option('--inspect', 'Chỉ kiểm tra metadata và quyền truy cập, không tải file về máy')
         .option('--concurrency <number>', 'Số luồng tải đồng thời', '2')
         .option('--delay <ms>', 'Khoảng nghỉ giữa các lượt tải file (ms)', '300')
         .action(
@@ -194,19 +203,89 @@ export function registerNetworkCommands(program: Command): void {
                     ext?: string[];
                     skip?: boolean;
                     extract?: boolean;
+                    incremental?: boolean;
+                    backup?: boolean;
+                    backupDir?: string;
+                    inspect?: boolean;
                     concurrency: string;
                     delay: string;
                 }
             ) => {
                 try {
                     const destDir = path.resolve(process.cwd(), options.output);
-                    console.log(pc.bold(`\n📂 Bắt đầu tải bài nộp Google Drive:`));
+                    console.log(pc.bold(`\n📂 Google Drive Submission Handler:`));
                     console.log(`- Nguồn URL:  ${pc.cyan(driveUrl)}`);
-                    console.log(`- Thư mục:    ${pc.dim(destDir)}`);
                     if (options.keyword && options.keyword.length > 0) {
                         console.log(`- Từ khóa:    ${pc.yellow(options.keyword.join(', '))}`);
                     }
 
+                    // Chế độ --inspect: Chỉ kiểm tra metadata và quyền truy cập
+                    if (options.inspect) {
+                        console.log(
+                            pc.dim(`- Đang kiểm tra metadata thư mục/tệp từ Google Drive...`)
+                        );
+                        const meta = await fetchSubmissionMetadata(driveUrl, {
+                            keywords: options.keyword,
+                            allowedExtensions: options.ext,
+                        });
+
+                        console.log(
+                            `- Trạng thái:  ${meta.accessStatus === 'public' ? pc.green('✓ Công khai (Public)') : pc.red(`❌ ${meta.accessStatus.toUpperCase()}`)}`
+                        );
+                        if (meta.targetFolderName) {
+                            console.log(`- Thư mục đích: ${pc.cyan(meta.targetFolderName)}`);
+                        }
+
+                        if (meta.accessStatus === 'restricted') {
+                            console.log(
+                                pc.yellow(`\n⚠️  CẢNH BÁO QUYỀN TRUY CẬP (PERMISSION DENIED):`)
+                            );
+                            console.log(
+                                pc.yellow(
+                                    `Học viên chưa bật quyền "Bất kỳ ai có liên kết đều có thể xem" (Anyone with the link can view).`
+                                )
+                            );
+                            console.log(pc.dim(`Hướng dẫn khắc phục:`));
+                            console.log(pc.dim(`  1. Học viên mở liên kết trên Google Drive.`));
+                            console.log(
+                                pc.dim(
+                                    `  2. Nhấn nút "Chia sẻ" (Share) -> Tại "Quyền truy cập chung" chọn "Bất kỳ ai có đường liên kết".`
+                                )
+                            );
+                            console.log(
+                                pc.dim(`  3. Đặt vai trò là "Người xem" (Viewer) và nhấn Xong.\n`)
+                            );
+                            return;
+                        }
+
+                        if (meta.accessStatus === 'not_found') {
+                            console.log(
+                                pc.red(
+                                    `\n❌ LỖI: Thư mục hoặc tệp không tồn tại trên Google Drive (404 Not Found).\n`
+                                )
+                            );
+                            return;
+                        }
+
+                        console.log(`- Tổng số file: ${pc.bold(meta.totalFiles)}`);
+                        console.log(
+                            `- Tổng dung lượng: ${pc.bold((meta.totalBytes / 1024).toFixed(1))} KB`
+                        );
+                        if (meta.files.length > 0) {
+                            console.log(`\nDanh sách file trong thư mục cuối:`);
+                            for (const f of meta.files) {
+                                const sizeStr =
+                                    f.sizeBytes !== undefined
+                                        ? `(${(f.sizeBytes / 1024).toFixed(1)} KB)`
+                                        : '';
+                                console.log(pc.green(`  ✓ ${f.name} `) + pc.dim(sizeStr));
+                            }
+                        }
+                        console.log();
+                        return;
+                    }
+
+                    console.log(`- Thư mục đích: ${pc.dim(destDir)}`);
                     const concurrency = parseInt(options.concurrency, 10) || 2;
                     const delayMs = parseInt(options.delay, 10) || 300;
 
@@ -215,6 +294,9 @@ export function registerNetworkCommands(program: Command): void {
                         allowedExtensions: options.ext,
                         skipIfExists: options.skip !== false,
                         autoExtractZip: options.extract !== false,
+                        incremental: options.incremental !== false,
+                        archiveOldVersions: options.backup !== false,
+                        backupDirName: options.backupDir || '_history',
                         concurrency,
                         delayMs,
                         onProgress: (done, total, fileName) => {
@@ -228,19 +310,73 @@ export function registerNetworkCommands(program: Command): void {
                         console.log(pc.cyan(`\n📁 Khớp thư mục buổi: "${result.matchedFolder}"`));
                     }
 
+                    if (result.accessStatus === 'restricted') {
+                        console.log(
+                            pc.red(`\n❌ THƯ MỤC BỊ HẠN CHẾ QUYỀN TRUY CẬP (RESTRICTED ACCESS):`)
+                        );
+                        console.log(
+                            pc.yellow(
+                                `Học viên chưa bật quyền "Bất kỳ ai có liên kết đều có thể xem" (Anyone with the link can view).`
+                            )
+                        );
+                        console.log(pc.dim(`Hướng dẫn khắc phục cho học viên:`));
+                        console.log(pc.dim(`  1. Mở liên kết Google Drive bài làm.`));
+                        console.log(
+                            pc.dim(
+                                `  2. Bấm "Chia sẻ" (Share) -> Chuyển quyền chung sang "Bất kỳ ai có đường liên kết".`
+                            )
+                        );
+                        console.log(
+                            pc.dim(
+                                `  3. Đặt vai trò "Người xem" rồi thông báo để hệ thống quét lại.\n`
+                            )
+                        );
+                        process.exit(1);
+                    }
+
                     if (result.warnings.length > 0) {
                         for (const w of result.warnings) {
                             console.log(pc.yellow(`⚠️  ${w}`));
                         }
                     }
 
-                    if (result.success) {
-                        const totalKb = (result.totalBytes / 1024).toFixed(1);
+                    if (result.archivedFiles && result.archivedFiles.length > 0) {
                         console.log(
-                            pc.green(
-                                `\n🎉 Hoàn tất! Đã tải ${result.downloadedFiles.length} file, bỏ qua ${result.skippedFiles.length} file (${totalKb} KB tổng cộng).\n`
+                            pc.magenta(
+                                `\n📦 Đã sao lưu ${result.archivedFiles.length} phiên bản cũ vào thư mục ${options.backupDir || '_history'}/:`
                             )
                         );
+                        for (const a of result.archivedFiles) {
+                            console.log(
+                                pc.dim(`  ↳ ${path.basename(a.originalPath)} -> `) +
+                                    pc.cyan(path.relative(destDir, a.archivedPath))
+                            );
+                        }
+                    }
+
+                    if (result.success) {
+                        const totalKb = (result.totalBytes / 1024).toFixed(1);
+
+                        if (
+                            result.hasChanges === false &&
+                            result.downloadedFiles.length === 0 &&
+                            (!result.updatedFiles || result.updatedFiles.length === 0)
+                        ) {
+                            console.log(
+                                pc.green(
+                                    `\n⚡ Đã đồng bộ: Không có thay đổi trên Google Drive và các file cục bộ đã đầy đủ. Bỏ qua tải lại (${result.skippedFiles.length} file giữ nguyên).\n`
+                                )
+                            );
+                        } else {
+                            const updatedCount = result.updatedFiles?.length || 0;
+                            const updateInfo =
+                                updatedCount > 0 ? `, cập nhật ${updatedCount} file sửa đổi` : '';
+                            console.log(
+                                pc.green(
+                                    `\n🎉 Hoàn tất! Đã tải ${result.downloadedFiles.length} file mới${updateInfo}, bỏ qua ${result.skippedFiles.length} file (${totalKb} KB tổng cộng).\n`
+                                )
+                            );
+                        }
                     } else {
                         console.error(pc.red(`\n❌ Không tải được file nào từ liên kết trên.\n`));
                         process.exit(1);

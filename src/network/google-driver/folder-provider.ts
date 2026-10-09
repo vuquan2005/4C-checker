@@ -5,9 +5,89 @@
  */
 import { createLogger } from '../../utils/logger.js';
 import { getGoogleApiKey } from '../../env.js';
-import { type GDriveItem, DEFAULT_USER_AGENT } from './types.js';
+import { type GDriveItem, type GDriveAccessStatus, DEFAULT_USER_AGENT } from './types.js';
 
 const logger = createLogger('GDriveProvider');
+
+/**
+ * Lỗi định danh quyền truy cập hoặc tài nguyên Google Drive
+ */
+export class GDriveAccessError extends Error {
+    constructor(
+        message: string,
+        public readonly status: GDriveAccessStatus,
+        public readonly httpStatus?: number
+    ) {
+        super(message);
+        this.name = 'GDriveAccessError';
+    }
+}
+
+/**
+ * Nhận diện trạng thái quyền truy cập từ HTML hoặc HTTP status của Google Drive
+ */
+export function detectHtmlAccessStatus(
+    html: string,
+    responseUrl?: string,
+    httpStatus?: number
+): { status: GDriveAccessStatus; reason?: string } {
+    if (httpStatus === 404) {
+        return {
+            status: 'not_found',
+            reason: 'Google Drive báo lỗi 404 (Không tìm thấy thư mục hoặc tệp)',
+        };
+    }
+
+    if (httpStatus === 401 || httpStatus === 403) {
+        return {
+            status: 'restricted',
+            reason: 'Google Drive từ chối quyền truy cập (HTTP 401/403 - Chưa mở quyền chia sẻ công khai)',
+        };
+    }
+
+    // Kiểm tra URL bị chuyển hướng đến trang đăng nhập Google Account
+    if (
+        responseUrl &&
+        /accounts\.google\.com\/(ServiceLogin|signin|v3\/signin)/i.test(responseUrl)
+    ) {
+        return {
+            status: 'restricted',
+            reason: 'Thư mục/tệp bị hạn chế quyền truy cập (bị chuyển hướng đến trang đăng nhập Google Account)',
+        };
+    }
+
+    // Kiểm tra các thông báo lỗi phân quyền phổ biến trong HTML Google Drive
+    const hasRestrictedPhrases =
+        /accounts\.google\.com\/(ServiceLogin|signin|v3\/signin)/i.test(html) ||
+        /You need (access|permission)|Request access/i.test(html) ||
+        /Bạn cần (có )?quyền truy cập|Yêu cầu quyền truy cập|Quyền truy cập bị từ chối/i.test(
+            html
+        ) ||
+        /<title>[^<]*Access Denied[^<]*<\/title>/i.test(html) ||
+        /<title>[^<]*Google Drive – Yêu cầu quyền truy cập[^<]*<\/title>/i.test(html);
+
+    if (hasRestrictedPhrases && !html.includes('_DRIVE_ivd')) {
+        return {
+            status: 'restricted',
+            reason: 'Học viên chưa mở quyền truy cập (Chưa bật "Bất kỳ ai có liên kết đều có thể xem")',
+        };
+    }
+
+    // Kiểm tra các thông báo 404 / Không tìm thấy tệp trong HTML
+    const hasNotFoundPhrases =
+        /404\. That’s an error/i.test(html) ||
+        /The requested URL was not found/i.test(html) ||
+        /Không tìm thấy tệp|Tệp không tồn tại|File not found/i.test(html);
+
+    if (hasNotFoundPhrases && !html.includes('_DRIVE_ivd')) {
+        return {
+            status: 'not_found',
+            reason: 'Thư mục hoặc tệp không tồn tại (404 Not Found)',
+        };
+    }
+
+    return { status: 'public' };
+}
 
 /**
  * Bóc tách danh sách file/folder từ biến nhúng _DRIVE_ivd trong HTML Google Drive
@@ -78,11 +158,30 @@ export async function fetchFolderItemsScraper(
             signal: controller.signal,
         });
 
+        const html = await res.text();
+        const accessCheck = detectHtmlAccessStatus(html, res.url, res.status);
+
+        if (accessCheck.status === 'restricted') {
+            throw new GDriveAccessError(
+                accessCheck.reason ||
+                    'Thư mục bị hạn chế quyền truy cập (Học viên chưa bật "Bất kỳ ai có liên kết đều có thể xem")',
+                'restricted',
+                res.status
+            );
+        }
+
+        if (accessCheck.status === 'not_found') {
+            throw new GDriveAccessError(
+                accessCheck.reason || 'Thư mục không tồn tại hoặc đã bị xóa',
+                'not_found',
+                res.status
+            );
+        }
+
         if (!res.ok) {
             throw new Error(`Google Drive returned HTTP ${res.status} ${res.statusText}`);
         }
 
-        const html = await res.text();
         return extractItemsFromIvdHtml(html);
     } finally {
         clearTimeout(timer);
@@ -98,7 +197,7 @@ export async function fetchFolderItemsApi(
     timeoutMs = 20000
 ): Promise<GDriveItem[]> {
     const query = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
-    const fields = encodeURIComponent('files(id,name,mimeType,size)');
+    const fields = encodeURIComponent('files(id,name,mimeType,size,modifiedTime,md5Checksum)');
     const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&key=${apiKey}`;
 
     const controller = new AbortController();
@@ -107,11 +206,32 @@ export async function fetchFolderItemsApi(
     try {
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) {
+            if (res.status === 403) {
+                throw new GDriveAccessError(
+                    'Google Drive API: Quyền truy cập bị từ chối (403 Forbidden - Thư mục chưa được chia sẻ công khai)',
+                    'restricted',
+                    403
+                );
+            }
+            if (res.status === 404) {
+                throw new GDriveAccessError(
+                    'Google Drive API: Không tìm thấy thư mục hoặc thư mục không công khai (404 Not Found)',
+                    'not_found',
+                    404
+                );
+            }
             throw new Error(`Google Drive API returned HTTP ${res.status} ${res.statusText}`);
         }
 
         const data = (await res.json()) as {
-            files?: Array<{ id: string; name: string; mimeType: string; size?: string }>;
+            files?: Array<{
+                id: string;
+                name: string;
+                mimeType: string;
+                size?: string;
+                modifiedTime?: string;
+                md5Checksum?: string;
+            }>;
         };
 
         if (!data.files || !Array.isArray(data.files)) {
@@ -123,6 +243,8 @@ export async function fetchFolderItemsApi(
             name: f.name,
             mimeType: f.mimeType,
             sizeBytes: f.size ? Number(f.size) : undefined,
+            modifiedTime: f.modifiedTime,
+            md5Checksum: f.md5Checksum,
             isFolder: f.mimeType === 'application/vnd.google-apps.folder',
         }));
     } finally {
@@ -144,9 +266,15 @@ export async function fetchFolderItems(
         try {
             return await fetchFolderItemsApi(folderId, apiKey, timeoutMs);
         } catch (err) {
-            logger.w(
-                `Google Drive API failed: ${(err as Error).message}. Falling back to public scraper...`
-            );
+            if (err instanceof GDriveAccessError) {
+                logger.w(
+                    `Google Drive API báo trạng thái "${err.status}": ${err.message}. Đang kiểm tra lại bằng public scraper...`
+                );
+            } else {
+                logger.w(
+                    `Google Drive API failed: ${(err as Error).message}. Falling back to public scraper...`
+                );
+            }
         }
     }
 
