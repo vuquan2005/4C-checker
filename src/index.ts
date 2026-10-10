@@ -66,6 +66,9 @@ export * from './preparation/index.js';
 // Configuration
 export * from './config/index.js';
 
+// Analysis & Plagiarism Detection
+export * from './analysis/index.js';
+
 // Types
 export * from './types/index.js';
 

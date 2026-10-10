@@ -126,6 +126,17 @@ export function mergeWithDefaultConfig(
             templateRseWhitelists:
                 loadedConfig.analysis?.templateRseWhitelists ??
                 defaults.analysis?.templateRseWhitelists,
+            ignore: {
+                warnings: loadedConfig.analysis?.ignore?.warnings ?? [],
+                violations: loadedConfig.analysis?.ignore?.violations ?? [],
+                byPost: {
+                    ...(defaults.analysis?.ignore?.byPost || {}),
+                    ...(loadedConfig.analysis?.ignore?.byPost || {}),
+                },
+            },
+            defaultSessionCriteria:
+                loadedConfig.analysis?.defaultSessionCriteria ??
+                defaults.analysis?.defaultSessionCriteria,
             sessions: loadedConfig.analysis?.sessions ?? defaults.analysis?.sessions,
         },
     };

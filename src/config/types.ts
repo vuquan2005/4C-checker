@@ -113,6 +113,20 @@ export interface SessionAnalysisCriteria {
 }
 
 /**
+ * Configuration for ignoring/suppressing known false positives or expected warnings in analysis
+ */
+export interface AnalysisIgnoreConfig {
+    /** Ignore specific warning types globally across the thread (e.g. ['UNRENDERED_URL', 'MALFORMED_BBCODE']) */
+    warnings?: string[];
+
+    /** Ignore specific criteria violation types globally (e.g. ['INSUFFICIENT_IMAGES', 'EXCEEDED_MAX_INVENTOR_VERSION']) */
+    violations?: string[];
+
+    /** Post-specific ignore rules: map postId to list of ignored warning/violation codes */
+    byPost?: Record<string, string[]>;
+}
+
+/**
  * Analysis configuration block (for cross-student plagiarism & assignment evaluation)
  */
 export interface AnalysisConfig {
@@ -121,6 +135,12 @@ export interface AnalysisConfig {
      * (prevents false positive plagiarism when entire class uses official template)
      */
     templateRseWhitelists?: string[][];
+
+    /** Rules for suppressing / ignoring known false alarms or non-critical warnings */
+    ignore?: AnalysisIgnoreConfig;
+
+    /** Default criteria applied to sessions without custom rules */
+    defaultSessionCriteria?: SessionAnalysisCriteria;
 
     /** Per-session evaluation rules */
     sessions?: Record<string, SessionAnalysisCriteria>;
