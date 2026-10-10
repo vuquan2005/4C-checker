@@ -8,14 +8,16 @@ import path from 'node:path';
 import { loadThreadConfig } from '../config/config-manager.js';
 import type { ThreadConfig } from '../config/types.js';
 import type { PostData, ThreadManifest } from '../preparation/types/manifest.js';
+import {
+    aggregateSessionSummaries,
+    aggregateStudentSummaries,
+    aggregateSummaryStats,
+} from './aggregator/index.js';
 import { evaluatePostSubmission } from './evaluator/post-evaluator.js';
 import { buildPlagiarismClusters } from './matcher/cluster-builder.js';
 import type {
-    AnalysisSummaryStats,
     PlagiarizedFileRef,
     PostAnalysisResult,
-    SessionAnalysisSummary,
-    StudentAnalysisSummary,
     ThreadAnalysisReport,
 } from './types/index.js';
 
@@ -48,6 +50,49 @@ function readPostData(postJsonPath: string): PostData | null {
         return JSON.parse(fs.readFileSync(postJsonPath, 'utf8')) as PostData;
     } catch {
         return null;
+    }
+}
+
+/**
+ * Auto-populates analysis.sessions skeleton in thread config if currently empty
+ */
+function syncSessionConfigSkeleton(
+    threadConfig: ThreadConfig,
+    discoveredSessions: Set<number>,
+    threadDir: string,
+    customConfigPath?: string
+): void {
+    if (
+        (!threadConfig.analysis?.sessions ||
+            Object.keys(threadConfig.analysis.sessions).length === 0) &&
+        discoveredSessions.size > 0
+    ) {
+        if (!threadConfig.analysis) {
+            threadConfig.analysis = { templateRseWhitelists: [], sessions: {} };
+        }
+        if (!threadConfig.analysis.sessions) {
+            threadConfig.analysis.sessions = {};
+        }
+        for (const sNum of Array.from(discoveredSessions).sort((a, b) => a - b)) {
+            threadConfig.analysis.sessions[String(sNum)] = {
+                title: `Buổi ${sNum}`,
+                deadline: '',
+                minCadFiles: 1,
+                minImages: 1,
+                maxAllowedInventorVersion: 2026,
+            };
+        }
+
+        const cfgPath = customConfigPath
+            ? path.resolve(process.cwd(), customConfigPath)
+            : path.join(threadDir, 'config.json');
+        if (fs.existsSync(cfgPath)) {
+            try {
+                fs.writeFileSync(cfgPath, JSON.stringify(threadConfig, null, 2), 'utf8');
+            } catch {
+                // ignore write error
+            }
+        }
     }
 }
 
@@ -178,153 +223,24 @@ export async function analyzeThread(
     }
 
     // Auto-populate analysis.sessions skeleton if currently empty
-    if (
-        (!threadConfig.analysis?.sessions ||
-            Object.keys(threadConfig.analysis.sessions).length === 0) &&
-        discoveredSessions.size > 0
-    ) {
-        if (!threadConfig.analysis) {
-            threadConfig.analysis = { templateRseWhitelists: [], sessions: {} };
-        }
-        if (!threadConfig.analysis.sessions) {
-            threadConfig.analysis.sessions = {};
-        }
-        for (const sNum of Array.from(discoveredSessions).sort((a, b) => a - b)) {
-            threadConfig.analysis.sessions[String(sNum)] = {
-                title: `Buổi ${sNum}`,
-                deadline: '',
-                minCadFiles: 1,
-                minImages: 1,
-                maxAllowedInventorVersion: 2026,
-            };
-        }
-
-        const cfgPath = options.configPath
-            ? path.resolve(process.cwd(), options.configPath)
-            : path.join(threadDir, 'config.json');
-        if (fs.existsSync(cfgPath)) {
-            try {
-                fs.writeFileSync(cfgPath, JSON.stringify(threadConfig, null, 2), 'utf8');
-            } catch {
-                // ignore write error
-            }
-        }
-    }
+    syncSessionConfigSkeleton(threadConfig, discoveredSessions, threadDir, options.configPath);
 
     // 6. Aggregate by Sessions
-    const sessions: Record<string, SessionAnalysisSummary> = {};
-    for (const post of postResults) {
-        const sKey = String(post.sessionIndex ?? 0);
-        if (!sessions[sKey]) {
-            const criteria =
-                threadConfig.analysis?.sessions?.[sKey] ??
-                (sKey !== '0' ? threadConfig.analysis?.defaultSessionCriteria : undefined);
-            sessions[sKey] = {
-                sessionIndex: post.sessionIndex ?? 0,
-                title: criteria?.title,
-                deadline: criteria?.deadline,
-                minCadFiles: criteria?.minCadFiles,
-                minImages: criteria?.minImages,
-                minImageSizeBytes: criteria?.minImageSizeBytes,
-                minImageWidth: criteria?.minImageWidth,
-                minImageHeight: criteria?.minImageHeight,
-                maxAllowedInventorVersion: criteria?.maxAllowedInventorVersion,
-                totalSubmissions: 0,
-                passedSubmissionsCount: 0,
-                failedSubmissionsCount: 0,
-                lateSubmissionsCount: 0,
-                clustersCount: 0,
-                posts: [],
-                clusters: [],
-            };
-        }
-
-        const sessionSummary = sessions[sKey];
-        sessionSummary.totalSubmissions++;
-        if (post.passedCriteria) {
-            sessionSummary.passedSubmissionsCount++;
-        } else {
-            sessionSummary.failedSubmissionsCount++;
-        }
-        if (post.isLate) {
-            sessionSummary.lateSubmissionsCount++;
-        }
-        sessionSummary.posts.push(post);
-    }
-
-    // Assign session clusters
-    for (const cluster of allClusters) {
-        if (cluster.sessionIndex !== undefined) {
-            const sKey = String(cluster.sessionIndex);
-            if (sessions[sKey]) {
-                sessions[sKey].clusters.push(cluster);
-                sessions[sKey].clustersCount++;
-            }
-        }
-    }
-
+    const sessions = aggregateSessionSummaries(postResults, allClusters, threadConfig);
     const crossSessionClusters = allClusters.filter((c) => c.sessionIndex === undefined);
 
     // 7. Aggregate Student Summaries
-    const students: Record<string, StudentAnalysisSummary> = {};
-    for (const post of postResults) {
-        const uid = post.author.uid;
-        if (!students[uid]) {
-            students[uid] = {
-                uid,
-                username: post.author.username,
-                userFolder: post.userFolder,
-                totalSubmissions: 0,
-                submittedSessions: [],
-                missingSessions: [],
-                lateSubmissionsCount: 0,
-                criteriaFailedCount: 0,
-                plagiarismInvolvementCount: 0,
-                involvedClusterIds: [],
-            };
-        }
-
-        const student = students[uid];
-        student.totalSubmissions++;
-        if (
-            post.sessionIndex !== undefined &&
-            !student.submittedSessions.includes(post.sessionIndex)
-        ) {
-            student.submittedSessions.push(post.sessionIndex);
-            student.submittedSessions.sort((a, b) => a - b);
-        }
-        if (post.isLate) student.lateSubmissionsCount++;
-        if (!post.passedCriteria) student.criteriaFailedCount++;
-
-        for (const cid of post.involvedClusterIds) {
-            if (!student.involvedClusterIds.includes(cid)) {
-                student.involvedClusterIds.push(cid);
-                student.plagiarismInvolvementCount++;
-            }
-        }
-    }
+    const students = aggregateStudentSummaries(postResults);
 
     // 8. Overall Metrics
-    const highSeverityClustersCount = allClusters.filter((c) => c.severity === 'high').length;
-    const mediumSeverityClustersCount = allClusters.filter((c) => c.severity === 'medium').length;
-    const lowSeverityClustersCount = allClusters.filter((c) => c.severity === 'low').length;
-    const suspiciousStudentsCount = Object.values(students).filter(
-        (s) => s.plagiarismInvolvementCount > 0
-    ).length;
-
-    const stats: AnalysisSummaryStats = {
+    const stats = aggregateSummaryStats({
         totalPostsDiscovered: postRecords.length,
-        totalPostsAnalyzed: postResults.length,
-        totalPostsSkipped: skippedPostsCount,
-        totalStudents: Object.keys(students).length,
-        totalCadFiles: allCadFiles.length,
-        totalValidCadFiles: allCadFiles.filter((f) => f.fileSizeBytes > 0).length,
-        totalClustersDetected: allClusters.length,
-        highSeverityClustersCount,
-        mediumSeverityClustersCount,
-        lowSeverityClustersCount,
-        suspiciousStudentsCount,
-    };
+        postResults,
+        skippedPostsCount,
+        students,
+        allCadFiles,
+        allClusters,
+    });
 
     const report: ThreadAnalysisReport = {
         $schema: 'https://raw.githubusercontent.com/4c-checker/schema/v1/analysis.json',

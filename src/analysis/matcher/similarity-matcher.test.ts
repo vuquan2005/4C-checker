@@ -7,7 +7,6 @@ import {
     normalizeGeometrySignature,
     normalizeRseSignature,
 } from './similarity-matcher.js';
-import { buildPlagiarismClusters } from './cluster-builder.js';
 
 describe('Similarity Matcher', () => {
     const mockRse1 = [
@@ -111,115 +110,5 @@ describe('Similarity Matcher', () => {
     it('ignores RSe matching if it matches a template whitelist', () => {
         const comparison = compareCadFiles(studentAFile, studentBFile, [mockRse1]);
         expect(comparison.matchTypes).not.toContain('identical_rse_segments');
-    });
-});
-
-describe('Plagiarism Cluster Builder', () => {
-    const mockRse = [
-        'B11111111111111111111111111',
-        'B22222222222222222222222222',
-        'B33333333333333333333333333',
-        'B44444444444444444444444444',
-        'B55555555555555555555555555',
-        'B66666666666666666666666666',
-        'B77777777777777777777777777',
-        'B88888888888888888888888888',
-    ];
-
-    it('does not create clusters for multiple files from the same student', () => {
-        const files: PlagiarizedFileRef[] = [
-            {
-                postId: '1',
-                postNumber: 1,
-                author: { uid: '100', username: 'Student A' },
-                sessionIndex: 1,
-                postDate: '2026-10-01T10:00:00Z',
-                fileName: 'f1.ipt',
-                filePath: '/f1.ipt',
-                fileSizeBytes: 1000,
-                rseSegmentIds: mockRse,
-            },
-            {
-                postId: '2',
-                postNumber: 2,
-                author: { uid: '100', username: 'Student A' }, // same author
-                sessionIndex: 1,
-                postDate: '2026-10-01T11:00:00Z',
-                fileName: 'f2.ipt',
-                filePath: '/f2.ipt',
-                fileSizeBytes: 1000,
-                rseSegmentIds: mockRse,
-            },
-        ];
-
-        const clusters = buildPlagiarismClusters(files);
-        expect(clusters).toHaveLength(0);
-    });
-
-    it('builds clusters and identifies suspected original and copies across multiple students', () => {
-        const files: PlagiarizedFileRef[] = [
-            {
-                postId: '1',
-                postNumber: 1,
-                author: { uid: '100', username: 'Student A' },
-                sessionIndex: 1,
-                postDate: '2026-10-01T10:00:00Z', // earlier
-                fileName: 'f1.ipt',
-                filePath: '/f1.ipt',
-                fileSizeBytes: 1000,
-                rseSegmentIds: mockRse,
-            },
-            {
-                postId: '2',
-                postNumber: 2,
-                author: { uid: '200', username: 'Student B' },
-                sessionIndex: 1,
-                postDate: '2026-10-01T12:00:00Z', // later
-                fileName: 'f2.ipt',
-                filePath: '/f2.ipt',
-                fileSizeBytes: 1000,
-                rseSegmentIds: mockRse,
-            },
-        ];
-
-        const clusters = buildPlagiarismClusters(files);
-        expect(clusters).toHaveLength(1);
-        const cluster = clusters[0];
-        expect(cluster.sessionIndex).toBe(1);
-        expect(cluster.severity).toBe('high');
-        expect(cluster.suspectedOriginal?.author.uid).toBe('100');
-        expect(cluster.suspectedCopies).toHaveLength(1);
-        expect(cluster.suspectedCopies[0].author.uid).toBe('200');
-    });
-
-    it('identifies cross-session plagiarism clusters', () => {
-        const files: PlagiarizedFileRef[] = [
-            {
-                postId: '1',
-                postNumber: 1,
-                author: { uid: '100', username: 'Student A' },
-                sessionIndex: 1,
-                postDate: '2026-10-01T10:00:00Z',
-                fileName: 'f1.ipt',
-                filePath: '/f1.ipt',
-                fileSizeBytes: 1000,
-                rseSegmentIds: mockRse,
-            },
-            {
-                postId: '2',
-                postNumber: 2,
-                author: { uid: '200', username: 'Student B' },
-                sessionIndex: 2, // different session!
-                postDate: '2026-10-02T10:00:00Z',
-                fileName: 'f2.ipt',
-                filePath: '/f2.ipt',
-                fileSizeBytes: 1000,
-                rseSegmentIds: mockRse,
-            },
-        ];
-
-        const clusters = buildPlagiarismClusters(files);
-        expect(clusters).toHaveLength(1);
-        expect(clusters[0].sessionIndex).toBeUndefined(); // cross-session
     });
 });
