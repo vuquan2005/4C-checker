@@ -36,6 +36,12 @@ export interface PostWorkerOptions {
 
     /** Force re-download even if already present locally (default: false) */
     force?: boolean;
+
+    /** Whitelist file extensions allowed for download from Drive */
+    allowedExtensions?: string[];
+
+    /** Custom session keyword patterns */
+    sessionKeywords?: string[];
 }
 
 export interface PostWorkerResult {
@@ -134,7 +140,8 @@ export async function processPost(
     const session = resolveSession(
         targetSnapshot.plainText,
         record.inferredSession,
-        record.sessionOverride
+        record.sessionOverride,
+        options?.sessionKeywords
     );
     const { warnings: sessionWarnings, ...sessionFields } = session;
     Object.assign(record, sessionFields, { sessionWarnings });
@@ -146,6 +153,7 @@ export async function processPost(
                 incremental: !options?.force,
                 skipIfExists: !options?.force,
                 autoExtractZip: true,
+                allowedExtensions: options?.allowedExtensions,
                 keywords:
                     sessionIndex === undefined
                         ? undefined
@@ -253,6 +261,7 @@ export async function processPost(
         userFolder: record.userFolder,
         postFolder: record.postFolder,
         skipProcessing: record.skipProcessing,
+        skipReason: record.skipReason,
         forumImages,
         driveFiles: driveSummary,
         cadSummaries,

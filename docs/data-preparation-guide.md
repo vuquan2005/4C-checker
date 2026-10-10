@@ -22,6 +22,7 @@ Sau khi chạy lệnh, dữ liệu được tổ chức tại thư mục gốc `
 ```text
 data/
 └── <threadId>/                          # Ví dụ: data/1336
+    ├── config.json                      # [Thread Config] Cấu hình bộ lọc ignore, từ khóa buổi, tiêu chí chấm
     ├── thread.json                      # [Thread Manifest] Tổng hợp toàn bộ bài nộp trong thread
     └── <userFolder>/                    # Chuẩn hóa theo tên: <Tên_Học_Viên>_<UID> (ví dụ: Nguyen_Xuan_Hieu_27392)
         └── <postFolder>/                # Định danh bài: post_<PostID> (ví dụ: post_26115)
@@ -103,20 +104,23 @@ pnpm dev sync <thread-id-hoặc-url> [tùy_chọn]
 
 ### 2.3. Bảng tham số & tùy chọn (CLI Options)
 
-| Tùy chọn (Option)      | Mặc định     | Ý nghĩa                                                          |
-| :--------------------- | :----------- | :--------------------------------------------------------------- |
-| `<thread-id-or-url>`   | _(Bắt buộc)_ | ID chủ đề (ví dụ: `1336`) hoặc link bài viết trên diễn đàn       |
-| `-d, --data-dir <dir>` | `./data`     | Thư mục gốc lưu trữ dữ liệu                                      |
-| `-m, --metadata-only`  | `false`      | Chỉ đồng bộ metadata vào `thread.json`, bỏ qua tải assets/CAD    |
-| `--post <id-or-num>`   | _None_       | Chỉ xử lý duy nhất 1 bài viết theo ID hoặc `#postNumber`         |
-| `--force`              | `false`      | Bắt buộc tải lại tài nguyên dù đã tồn tại trên đĩa               |
-| `--concurrency <n>`    | `2`          | Số lượng luồng worker xử lý đồng thời                            |
-| `-i, --input <file>`   | _None_       | Đọc từ file HTML nội bộ thay vì cào mạng                         |
-| `--no-images`          | `false`      | Bỏ qua tải ảnh BBCode vào `student_images/`                      |
-| `--no-drive`           | `false`      | Bỏ qua tải dữ liệu Drive vào `drive_files/`                      |
-| `--no-cad`             | `false`      | Bỏ qua trích xuất thông tin & preview CAD 3D vào `cad_previews/` |
-| `--include-op`         | `false`      | Bao gồm cả bài viết mở đầu (#1) của chủ thớt                     |
-| `--json`               | `false`      | Xuất kết quả tổng kết dưới dạng JSON                             |
+| Tùy chọn (Option)        | Mặc định     | Ý nghĩa                                                                             |
+| :----------------------- | :----------- | :---------------------------------------------------------------------------------- |
+| `<thread-id-or-url>`     | _(Bắt buộc)_ | ID chủ đề (ví dụ: `1336`) hoặc link bài viết trên diễn đàn                          |
+| `-d, --data-dir <dir>`   | `./data`     | Thư mục gốc lưu trữ dữ liệu                                                         |
+| `-c, --config <file>`    | _None_       | Đường dẫn file cấu hình JSON tùy chỉnh (mặc định tự tìm `config.json` trong thread) |
+| `--ignore-post <ids...>` | _None_       | Danh sách Post ID cần bỏ qua (ví dụ: `--ignore-post 26090 26145`)                   |
+| `--ignore-uid <uids...>` | _None_       | Danh sách User UID cần bỏ qua (ví dụ: `--ignore-uid 27392 27380`)                   |
+| `-m, --metadata-only`    | `false`      | Chỉ đồng bộ metadata vào `thread.json`, bỏ qua tải assets/CAD                       |
+| `--post <id-or-num>`     | _None_       | Chỉ xử lý duy nhất 1 bài viết theo ID hoặc `#postNumber`                            |
+| `--force`                | `false`      | Bắt buộc tải lại tài nguyên dù đã tồn tại trên đĩa                                  |
+| `--concurrency <n>`      | `2`          | Số lượng luồng worker xử lý đồng thời                                               |
+| `-i, --input <file>`     | _None_       | Đọc từ file HTML nội bộ thay vì cào mạng                                            |
+| `--no-images`            | `false`      | Bỏ qua tải ảnh BBCode vào `student_images/`                                         |
+| `--no-drive`             | `false`      | Bỏ qua tải dữ liệu Drive vào `drive_files/`                                         |
+| `--no-cad`               | `false`      | Bỏ qua trích xuất thông tin & preview CAD 3D vào `cad_previews/`                    |
+| `--include-op`           | `false`      | Bao gồm cả bài viết mở đầu (#1) của chủ thớt                                        |
+| `--json`                 | `false`      | Xuất kết quả tổng kết dưới dạng JSON                                                |
 
 ---
 
@@ -126,7 +130,52 @@ Hệ thống được thiết kế với cơ chế **tự phục hồi (self-hea
 
 ---
 
-### 3.1. Chỉnh sửa trong `post.json` (Khuyên dùng khi can thiệp từng bài)
+### 3.1. Cấu hình trung tâm trong `config.json` (Khuyên dùng cho toàn thread)
+
+Đường dẫn: `data/<threadId>/config.json`
+
+File `config.json` được tự động khởi tạo khi đồng bộ thread lần đầu. Bạn có thể cấu hình các quy tắc ignore, từ khóa buổi, và đuôi file ngay tại đây mà không cần đi vào từng bài:
+
+```json
+{
+  "threadId": "1336",
+  "prepare": {
+    "ignore": {
+      "ignoreOp": true,
+      "postIds": ["26090"],
+      "postNumbers": [15],
+      "uids": ["27392", "27380"],
+      "usernames": ["Admin", "GiangVien_*"]
+    },
+    "session": {
+      "keywords": ["buoi", "b", "btvn", "lab", "tuan"]
+    },
+    "drive": {
+      "allowedExtensions": [".ipt", ".iam", "ipn", ".ipj", ".idw", ".dwg", ".zip", ".rar"],
+      "maxFileSizeBytes": 104857600
+    },
+    "network": {
+      "concurrency": 2,
+      "downloadImages": true,
+      "downloadDrive": true,
+      "extractCad": true
+    }
+  }
+}
+```
+
+- **Quy tắc Ignore:**
+  - `ignoreOp`: Bỏ qua bài mở đầu #1 (mặc định: `true`).
+  - `postIds`: Mảng Post ID cần bỏ qua.
+  - `postNumbers`: Mảng số thứ tự bài cần bỏ qua (#15, #20...).
+  - `uids`: Mảng UID tác giả cần bỏ qua (Giảng viên, Trợ giảng).
+  - `usernames`: Mảng tên tác giả cần bỏ qua (hỗ trợ wildcard như `"Admin_*"`).
+- **Tác động khi chạy lại sync:**
+  Hệ thống sẽ cập nhật trạng thái các bài bị ignore thành `skipProcessing: true` kèm lý do `skipReason: "IGNORED_UID: ..."` trong `thread.json`, đồng thời bỏ qua toàn bộ việc tải ảnh, tải file Google Drive và trích xuất CAD cho những bài này.
+
+---
+
+### 3.2. Chỉnh sửa trong `post.json` (Can thiệp cục bộ từng bài)
 
 Đường dẫn: `data/<threadId>/<userFolder>/<postFolder>/post.json`
 

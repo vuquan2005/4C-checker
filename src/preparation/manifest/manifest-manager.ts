@@ -10,6 +10,7 @@ import type { ThreadManifest, ThreadPostRecord, PostSnapshot } from '../types/ma
 import { normalizeUserFolderName, buildPostFolderName } from '../utils/folder-namer.js';
 import { getSessionForInference, resolveSession } from '../utils/session-resolver.js';
 import { ensureDir } from '../../utils/file-utils.js';
+import { isPostIgnored, type IgnoreConfig } from '../../config/index.js';
 
 export interface ManifestSyncOptions {
     /** Override current ISO 8601 timestamp (useful for testing) */
@@ -22,6 +23,12 @@ export interface ManifestSyncOptions {
     markMissing?: boolean;
     /** Root data directory used to rename downloaded deleted posts. */
     dataDir?: string;
+    /** Ignore configuration to filter posts */
+    ignoreConfig?: IgnoreConfig;
+    /** Custom session keyword patterns */
+    sessionKeywords?: string[];
+    /** Manual session overrides by Post ID */
+    sessionOverrides?: Record<string, number>;
 }
 
 export interface ManifestSyncResult {
@@ -164,6 +171,7 @@ export function recalculateManifestStats(manifest: ThreadManifest): void {
         outdatedPosts: records.filter((r) => r.syncStatus === 'outdated').length,
         pendingPosts: records.filter((r) => r.syncStatus === 'pending').length,
         failedPosts: records.filter((r) => r.syncStatus === 'failed').length,
+        skippedPosts: records.filter((r) => r.skipProcessing === true).length,
     };
 }
 
@@ -209,7 +217,13 @@ export function syncThreadPostsIntoManifest(
                 userFolder,
                 post.postNumber
             );
-            const session = resolveSession(post.plainText, inferredSession);
+            const sessionOverride = options?.sessionOverrides?.[post.postId];
+            const session = resolveSession(
+                post.plainText,
+                inferredSession,
+                sessionOverride,
+                options?.sessionKeywords
+            );
             const { warnings: sessionWarnings, ...sessionFields } = session;
 
             const initialSnapshot: PostSnapshot = {
@@ -222,6 +236,8 @@ export function syncThreadPostsIntoManifest(
                 imageUrls: [...post.imageUrls],
                 warnings: [...post.warnings, ...sessionWarnings],
             };
+
+            const ignoreEval = isPostIgnored(post, options?.ignoreConfig);
 
             const record: ThreadPostRecord = {
                 postId: post.postId,
@@ -237,7 +253,9 @@ export function syncThreadPostsIntoManifest(
                 editedInfo: post.editedInfo ? { ...post.editedInfo } : undefined,
                 firstSeenAt: nowIso,
                 lastSyncedAt: nowIso,
-                syncStatus: 'pending',
+                syncStatus: ignoreEval.ignored ? 'synced' : 'pending',
+                skipProcessing: ignoreEval.ignored ? true : undefined,
+                skipReason: ignoreEval.ignored ? ignoreEval.reason : undefined,
                 current: 1,
                 history: [initialSnapshot],
             };
@@ -256,10 +274,13 @@ export function syncThreadPostsIntoManifest(
                 existingRecord.userFolder,
                 post.postNumber
             );
+            const sessionOverride =
+                options?.sessionOverrides?.[post.postId] ?? existingRecord.sessionOverride;
             const session = resolveSession(
                 post.plainText,
                 inferredSession,
-                existingRecord.sessionOverride
+                sessionOverride,
+                options?.sessionKeywords
             );
             const { warnings: sessionWarnings, ...sessionFields } = session;
             Object.assign(existingRecord, {
@@ -267,6 +288,27 @@ export function syncThreadPostsIntoManifest(
                 sessionWarnings,
                 forumStatus: 'active',
             });
+
+            if (options?.ignoreConfig) {
+                const ignoreEval = isPostIgnored(post, options.ignoreConfig);
+                if (ignoreEval.ignored) {
+                    existingRecord.skipProcessing = true;
+                    existingRecord.skipReason = ignoreEval.reason;
+                    if (
+                        existingRecord.syncStatus === 'pending' ||
+                        existingRecord.syncStatus === 'outdated'
+                    ) {
+                        existingRecord.syncStatus = 'synced';
+                    }
+                } else if (
+                    existingRecord.skipProcessing &&
+                    existingRecord.skipReason?.startsWith('IGNORED_')
+                ) {
+                    existingRecord.skipProcessing = false;
+                    existingRecord.skipReason = undefined;
+                    existingRecord.syncStatus = 'pending';
+                }
+            }
             const lastSnapshot = existingRecord.history[existingRecord.history.length - 1];
 
             const editedAtChanged =

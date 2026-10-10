@@ -196,4 +196,40 @@ describe('Thread Manifest Manager', () => {
         expect(loaded?.threadId).toBe('999');
         expect(loaded?.posts['101'].userFolder).toBe('Student_One_1001');
     });
+
+    it('marks new posts as skipProcessing when matching ignoreConfig and updates skippedPosts count', () => {
+        const manifest = createEmptyManifest('999');
+        const postNormal = createDummyPost('101', 2, 'Student One_K16', '1001');
+        const postTeacher = createDummyPost('102', 3, 'Teacher Long_GV', '9999');
+
+        syncThreadPostsIntoManifest(manifest, [postNormal, postTeacher], {
+            ignoreConfig: {
+                uids: ['9999'],
+            },
+        });
+
+        expect(manifest.posts['101'].skipProcessing).toBeUndefined();
+        expect(manifest.posts['101'].syncStatus).toBe('pending');
+
+        expect(manifest.posts['102'].skipProcessing).toBe(true);
+        expect(manifest.posts['102'].skipReason).toContain('IGNORED_UID: 9999');
+        expect(manifest.posts['102'].syncStatus).toBe('synced');
+
+        expect(manifest.stats.skippedPosts).toBe(1);
+    });
+
+    it('resolves session with custom keywords from options', () => {
+        const manifest = createEmptyManifest('999');
+        const post = {
+            ...createDummyPost('101', 2, 'Student One_K16', '1001'),
+            plainText: 'Em nộp btvn 03 ạ',
+        };
+
+        syncThreadPostsIntoManifest(manifest, [post], {
+            sessionKeywords: ['btvn', 'lab'],
+        });
+
+        expect(manifest.posts['101'].declaredSession).toBe(3);
+        expect(manifest.posts['101'].sessionIndex).toBe(3);
+    });
 });

@@ -171,6 +171,46 @@ describe('Thread Pipeline Orchestrator', () => {
             'post.json'
         );
         expect(JSON.parse(fs.readFileSync(postSummaryPath, 'utf8')).sessionOverride).toBe(3);
+
+        const configPath = path.join(tempDir, '999', 'config.json');
+        expect(
+            JSON.parse(fs.readFileSync(configPath, 'utf8')).prepare.session.overrides['102']
+        ).toBe(3);
+    });
+
+    it('automatically applies session.overrides from config without triggering conflict handler', async () => {
+        const conflictHtml = mockThreadHtml
+            .replace('Student Alpha submission', 'Student Alpha submission b2')
+            .replace('Student Beta_K16', 'Student Alpha_K16')
+            .replace('uid=202', 'uid=201')
+            .replace('Student Beta submission', 'Student Alpha submission b4');
+        let conflictPrompted = false;
+
+        const summary = await syncThread('999', {
+            dataDir: tempDir,
+            htmlContent: conflictHtml,
+            downloadDrive: false,
+            downloadImages: false,
+            extractCad: false,
+            config: {
+                prepare: {
+                    session: {
+                        overrides: {
+                            '102': 5,
+                        },
+                    },
+                },
+            },
+            onSessionConflict: () => {
+                conflictPrompted = true;
+                return undefined;
+            },
+        });
+
+        expect(conflictPrompted).toBe(false);
+        expect(summary.manifest.posts['102'].sessionOverride).toBe(5);
+        expect(summary.manifest.posts['102'].sessionIndex).toBe(5);
+        expect(summary.manifest.posts['102'].sessionSource).toBe('override');
     });
 
     it('detects a previously failed Drive summary for reprocessing', async () => {
@@ -200,7 +240,7 @@ describe('Thread Pipeline Orchestrator', () => {
         expect(needsPostAssetReprocessing(tempDir, '999', record)).toBe(true);
     });
 
-    it('skips manually disabled posts even when force processing is requested', async () => {
+    it('skips ignored posts even when force processing is requested', async () => {
         const firstRun = await syncThread('999', {
             dataDir: tempDir,
             htmlContent: mockThreadHtml,
@@ -209,17 +249,13 @@ describe('Thread Pipeline Orchestrator', () => {
             downloadImages: false,
             extractCad: false,
         });
-        const record = firstRun.manifest.posts['101'];
-        const summaryPath = path.join(
-            tempDir,
-            '999',
-            record.userFolder,
-            record.postFolder,
-            'post.json'
-        );
-        const postSummary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
-        postSummary.skipProcessing = true;
-        fs.writeFileSync(summaryPath, JSON.stringify(postSummary));
+        expect(firstRun.processedPostsCount).toBe(2);
+
+        // Ignore post 101 via config.json
+        const configPath = path.join(tempDir, '999', 'config.json');
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        config.prepare.ignore.postIds = ['101'];
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
         const secondRun = await syncThread('999', {
             dataDir: tempDir,
@@ -231,7 +267,34 @@ describe('Thread Pipeline Orchestrator', () => {
         });
 
         expect(secondRun.processedPostsCount).toBe(1);
-        expect(secondRun.manifest.posts['101'].postId).toBe('101');
-        expect(JSON.parse(fs.readFileSync(summaryPath, 'utf8')).skipProcessing).toBe(true);
+        expect(secondRun.manifest.posts['101'].skipProcessing).toBe(true);
+        expect(secondRun.manifest.posts['101'].skipReason).toContain('IGNORED_POST_ID: 101');
+    });
+
+    it('skips posts configured in ThreadConfig ignore rules and creates config.json template', async () => {
+        const summary = await syncThread('999', {
+            dataDir: tempDir,
+            htmlContent: mockThreadHtml,
+            downloadDrive: false,
+            downloadImages: false,
+            extractCad: false,
+            config: {
+                prepare: {
+                    ignore: {
+                        uids: ['201'], // Student Alpha
+                    },
+                },
+            },
+        });
+
+        // Student Alpha (UID 201) was ignored via config, only Student Beta (UID 202) was processed
+        expect(summary.processedPostsCount).toBe(1);
+        expect(summary.manifest.posts['101'].skipProcessing).toBe(true);
+        expect(summary.manifest.posts['101'].skipReason).toContain('IGNORED_UID: 201');
+        expect(summary.manifest.posts['102'].skipProcessing).toBeUndefined();
+
+        // Check that config.json was created
+        const configPath = path.join(tempDir, '999', 'config.json');
+        expect(fs.existsSync(configPath)).toBe(true);
     });
 });

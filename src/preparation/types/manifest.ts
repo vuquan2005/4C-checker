@@ -106,6 +106,9 @@ export interface ThreadPostRecord {
     /** Manually skip asset downloads and CAD analysis for this post. */
     skipProcessing?: boolean;
 
+    /** Reason why post processing was skipped (e.g. IGNORED_BY_CONFIG) */
+    skipReason?: string;
+
     /** Current active version number (index pointer into history, e.g. 1, 2...) */
     current: number;
 
@@ -140,6 +143,7 @@ export interface ThreadManifest {
         outdatedPosts: number;
         pendingPosts: number;
         failedPosts: number;
+        skippedPosts?: number;
     };
 
     /** Map of postId -> ThreadPostRecord */
@@ -207,6 +211,9 @@ export interface PostData {
 
     /** Manually skip future asset downloads and CAD analysis for this post. */
     skipProcessing?: boolean;
+
+    /** Reason why post processing was skipped */
+    skipReason?: string;
 
     /** BBCode images downloaded from forum post */
     forumImages: ForumImageDownloadSummary[];

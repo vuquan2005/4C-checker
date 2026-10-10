@@ -70,7 +70,7 @@ describe('Post Ingestion Worker', () => {
         expect(summaryContent.sessionIndex).toBeUndefined();
         expect(summaryContent.sessionOverride).toBeNull();
         expect(summaryContent.warnings).toContain(
-            'SESSION_OVERRIDE_REQUIRED: set sessionOverride in post.json and rerun'
+            'SESSION_OVERRIDE_REQUIRED: set session.overrides in config.json and rerun'
         );
         expect(record.syncStatus).toBe('synced');
     });

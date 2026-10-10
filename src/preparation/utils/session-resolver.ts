@@ -10,9 +10,21 @@ export interface SessionResolution {
     warnings: string[];
 }
 
-function extractDeclaredSessions(text: string): number[] {
-    const matches = text.matchAll(/(?:buổi|buoi)\s*[-:]?\s*0?(\d+)\b|\bb\s*0?(\d+)\b/giu);
-    return [...new Set([...matches].map((match) => Number(match[1] || match[2])))].filter(
+function buildSessionRegex(keywords?: string[]): RegExp {
+    if (!keywords || keywords.length === 0) {
+        return /(?:buổi|buoi)\s*[-:]?\s*0?(\d+)\b|\bb\s*0?(\d+)\b/giu;
+    }
+    const escapedKeywords = keywords
+        .map((k) => k.trim())
+        .filter(Boolean)
+        .map((k) => k.replace(/[.+^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp(`(?:${escapedKeywords.join('|')})\\s*[-:]?\\s*0?(\\d+)\\b`, 'giu');
+}
+
+function extractDeclaredSessions(text: string, keywords?: string[]): number[] {
+    const regex = buildSessionRegex(keywords);
+    const matches = text.matchAll(regex);
+    return [...new Set([...matches].map((match) => Number(match[1])))].filter(
         (session) => session > 0
     );
 }
@@ -20,9 +32,10 @@ function extractDeclaredSessions(text: string): number[] {
 export function resolveSession(
     text: string,
     inferredSession?: number,
-    sessionOverride?: number
+    sessionOverride?: number,
+    keywords?: string[]
 ): SessionResolution {
-    const declaredSessions = extractDeclaredSessions(text);
+    const declaredSessions = extractDeclaredSessions(text, keywords);
     const declaredSession = declaredSessions.length === 1 ? declaredSessions[0] : undefined;
     const warnings: string[] = [];
 
@@ -53,7 +66,7 @@ export function resolveSession(
             declaredSessions.length > 1 ||
             (declaredSession === undefined && inferredSession === undefined))
     ) {
-        warnings.push('SESSION_OVERRIDE_REQUIRED: set sessionOverride in post.json and rerun');
+        warnings.push('SESSION_OVERRIDE_REQUIRED: set session.overrides in config.json and rerun');
     }
 
     if (sessionOverride !== undefined) {

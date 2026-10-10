@@ -20,7 +20,7 @@ describe('Session Resolver', () => {
         expect(result.sessionSource).toBeUndefined();
         expect(result.warnings).toEqual([
             'SESSION_CONFLICT:2->3',
-            'SESSION_OVERRIDE_REQUIRED: set sessionOverride in post.json and rerun',
+            'SESSION_OVERRIDE_REQUIRED: set session.overrides in config.json and rerun',
         ]);
     });
 
@@ -41,7 +41,7 @@ describe('Session Resolver', () => {
         expect(result.sessionSource).toBeUndefined();
         expect(result.warnings).toEqual([
             'SESSION_NOT_FOUND',
-            'SESSION_OVERRIDE_REQUIRED: set sessionOverride in post.json and rerun',
+            'SESSION_OVERRIDE_REQUIRED: set session.overrides in config.json and rerun',
         ]);
     });
 });

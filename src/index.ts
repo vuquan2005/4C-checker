@@ -63,6 +63,9 @@ export {
 // Preparation & Sync Models
 export * from './preparation/index.js';
 
+// Configuration
+export * from './config/index.js';
+
 // Types
 export * from './types/index.js';
 

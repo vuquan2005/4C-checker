@@ -22,6 +22,15 @@ import { fetchAllThreadPages } from '../network/mybb-client.js';
 import { parseThreadPosts } from '../parser/thread-parser.js';
 import { getMyBbCookie } from '../env.js';
 import { withLogContext } from '../utils/logger.js';
+import {
+    ensureThreadConfig,
+    loadThreadConfig,
+    getThreadConfigPath,
+    setThreadConfigSessionOverride,
+    isPostIgnored,
+    type ThreadConfig,
+    type IgnoreConfig,
+} from '../config/index.js';
 
 export interface ThreadSyncProgressEvent {
     type:
@@ -57,6 +66,12 @@ export interface ThreadSyncOptions extends PostWorkerOptions {
     /** Custom HTML string to parse directly instead of fetching from MyBB */
     htmlContent?: string;
 
+    /** Custom path to config.json */
+    configPath?: string;
+
+    /** Loaded ThreadConfig or partial override */
+    config?: ThreadConfig;
+
     /** Progress callback */
     onProgress?: (event: ThreadSyncProgressEvent) => void;
 
@@ -80,29 +95,26 @@ export interface ThreadSyncSummary {
     durationMs: number;
 }
 
-function getPostSummaryPath(dataDir: string, threadId: string, record: ThreadPostRecord): string {
-    const postDir = path.join(dataDir, threadId, record.userFolder, record.postFolder);
-    const postPath = path.join(postDir, 'post.json');
-    return fs.existsSync(postPath) ? postPath : path.join(postDir, 'post_summary.json');
-}
-
-/** Whether a manually configured post must be excluded from asset processing. */
+/** Whether a post must be excluded from asset processing (via manifest state or config ignore rules) */
 export function isPostProcessingSkipped(
-    dataDir: string,
-    threadId: string,
-    record: ThreadPostRecord
+    dataDirOrRecord: string | ThreadPostRecord,
+    threadIdOrIgnore?: string | IgnoreConfig,
+    recordOrIgnore?: ThreadPostRecord | IgnoreConfig,
+    ignoreConfigParam?: IgnoreConfig
 ): boolean {
+    const record =
+        typeof dataDirOrRecord === 'object'
+            ? dataDirOrRecord
+            : (recordOrIgnore as ThreadPostRecord);
+    const ignoreConfig =
+        typeof threadIdOrIgnore === 'object'
+            ? (threadIdOrIgnore as IgnoreConfig)
+            : ignoreConfigParam;
+
+    if (!record) return false;
     if (record.skipProcessing === true) return true;
-
-    const summaryPath = getPostSummaryPath(dataDir, threadId, record);
-    if (!fs.existsSync(summaryPath)) return false;
-
-    try {
-        const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8')) as Partial<PostData>;
-        return summary.skipProcessing === true;
-    } catch {
-        return false;
-    }
+    if (ignoreConfig && isPostIgnored(record, ignoreConfig).ignored) return true;
+    return false;
 }
 
 /**
@@ -171,8 +183,40 @@ export async function syncThread(
     const dataDir = options.dataDir
         ? path.resolve(process.cwd(), options.dataDir)
         : path.resolve(process.cwd(), 'data');
-    const concurrency = Math.max(1, options.concurrency || 2);
-    const ignoreOp = options.ignoreOp !== false;
+
+    // 0. Load thread configuration or defaults
+    const threadConfig =
+        options.config ||
+        loadThreadConfig({
+            dataDir,
+            threadId,
+            customPath: options.configPath,
+        });
+
+    const prepConfig = threadConfig.prepare || {};
+    const ignoreConfig: IgnoreConfig = { ...(prepConfig.ignore || {}) };
+
+    if (options.ignoreOp !== undefined) {
+        ignoreConfig.ignoreOp = options.ignoreOp;
+    }
+
+    const concurrency = Math.max(1, options.concurrency ?? prepConfig.network?.concurrency ?? 2);
+    const ignoreOp = ignoreConfig.ignoreOp !== false;
+    const downloadImages =
+        options.downloadImages !== undefined
+            ? options.downloadImages
+            : prepConfig.network?.downloadImages !== false;
+    const downloadDrive =
+        options.downloadDrive !== undefined
+            ? options.downloadDrive
+            : prepConfig.network?.downloadDrive !== false;
+    const extractCad =
+        options.extractCad !== undefined
+            ? options.extractCad
+            : prepConfig.network?.extractCad !== false;
+    const allowedExtensions = options.allowedExtensions ?? prepConfig.drive?.allowedExtensions;
+    const sessionKeywords = options.sessionKeywords ?? prepConfig.session?.keywords;
+    const sessionOverrides = { ...(prepConfig.session?.overrides || {}) };
 
     // 1. Fetch and parse forum posts
     let allPosts: RawForumPost[];
@@ -232,6 +276,9 @@ export async function syncThread(
     const syncDiff = syncThreadPostsIntoManifest(manifest, allPosts, {
         markMissing: !options.targetPostId,
         dataDir,
+        ignoreConfig,
+        sessionKeywords,
+        sessionOverrides,
     });
 
     // Persist manifest state immediately
@@ -278,7 +325,7 @@ export async function syncThread(
             (record) =>
                 record.forumStatus !== 'deleted' &&
                 candidatePostIds.has(record.postId) &&
-                !isPostProcessingSkipped(dataDir, threadId, record)
+                !isPostProcessingSkipped(dataDir, threadId, record, ignoreConfig)
         );
 
         if (candidateRecords.length > 0) {
@@ -301,6 +348,17 @@ export async function syncThread(
                 );
                 if (sessionOverride !== undefined) {
                     record.sessionOverride = sessionOverride;
+                    const configFilePath =
+                        options.configPath || getThreadConfigPath(dataDir, threadId);
+                    try {
+                        setThreadConfigSessionOverride(
+                            configFilePath,
+                            record.postId,
+                            sessionOverride
+                        );
+                    } catch {
+                        // Ignore write failures in mock environments
+                    }
                 }
             }
             saveThreadManifest(dataDir, manifest);
@@ -345,10 +403,12 @@ export async function syncThread(
                             },
                             () =>
                                 processPost(dataDir, threadId, record, undefined, {
-                                    downloadImages: options.downloadImages,
-                                    downloadDrive: options.downloadDrive,
-                                    extractCad: options.extractCad,
+                                    downloadImages,
+                                    downloadDrive,
+                                    extractCad,
                                     force: options.force,
+                                    allowedExtensions,
+                                    sessionKeywords,
                                 })
                         );
                         processedCount++;
@@ -373,6 +433,13 @@ export async function syncThread(
             recalculateManifestStats(manifest);
             saveThreadManifest(dataDir, manifest);
         }
+    }
+
+    // Ensure thread config template is initialized on disk if not provided custom path
+    if (!options.configPath) {
+        ensureThreadConfig(dataDir, threadId, {
+            title: manifest.title,
+        });
     }
 
     const durationMs = Date.now() - startTime;

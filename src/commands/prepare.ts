@@ -5,7 +5,12 @@ import { stdin as standardInput, stderr as standardError } from 'node:process';
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { parseThreadIdInput } from './network.js';
-import { syncThread, readTextFileAutoEncoding } from '../index.js';
+import {
+    syncThread,
+    readTextFileAutoEncoding,
+    loadThreadConfig,
+    type ThreadConfig,
+} from '../index.js';
 
 /**
  * Đăng ký các câu lệnh đồng bộ và chuẩn bị dữ liệu (prepare-thread / sync)
@@ -26,6 +31,19 @@ export function registerPrepareCommands(program: Command): void {
             'Chỉ đồng bộ metadata và lịch sử vào thread.json, không tải file CAD/ảnh',
             false
         )
+        .option('-c, --config <file>', 'Đường dẫn tới file cấu hình JSON tùy chỉnh')
+        .option(
+            '--ignore-post <ids...>',
+            'Danh sách Post ID cần bỏ qua (ví dụ: --ignore-post 26090 26145)'
+        )
+        .option(
+            '--ignore-uid <uids...>',
+            'Danh sách User UID cần bỏ qua (ví dụ: --ignore-uid 27392 27380)'
+        )
+        .option(
+            '--session-override <pairs...>',
+            'Ghi đè số buổi theo cặp postId:session (ví dụ: --session-override 26123:2 26167:3)'
+        )
         .option('--force', 'Tải lại toàn bộ dữ liệu dù đã tồn tại trên đĩa', false)
         .option('--post <id-or-num>', 'Chỉ lọc và đồng bộ một bài viết cụ thể')
         .option('--concurrency <n>', 'Số luồng xử lý đồng thời (mặc định: 2)', '2')
@@ -40,6 +58,10 @@ export function registerPrepareCommands(program: Command): void {
                 options: {
                     dataDir: string;
                     input?: string;
+                    config?: string;
+                    ignorePost?: string[];
+                    ignoreUid?: string[];
+                    sessionOverride?: string[];
                     metadataOnly?: boolean;
                     force?: boolean;
                     post?: string;
@@ -81,9 +103,56 @@ export function registerPrepareCommands(program: Command): void {
                         }
                     }
 
+                    let customConfig: ThreadConfig | undefined;
+                    if (options.ignorePost || options.ignoreUid || options.sessionOverride) {
+                        customConfig = loadThreadConfig({
+                            dataDir: options.dataDir,
+                            threadId,
+                            customPath: options.config,
+                        });
+                        if (options.ignorePost) {
+                            const postList = options.ignorePost.flatMap((p) =>
+                                p.split(',').map((x) => x.trim())
+                            );
+                            customConfig.prepare!.ignore!.postIds = [
+                                ...new Set([
+                                    ...(customConfig.prepare?.ignore?.postIds || []),
+                                    ...postList,
+                                ]),
+                            ];
+                        }
+                        if (options.ignoreUid) {
+                            const uidList = options.ignoreUid.flatMap((u) =>
+                                u.split(',').map((x) => x.trim())
+                            );
+                            customConfig.prepare!.ignore!.uids = [
+                                ...new Set([
+                                    ...(customConfig.prepare?.ignore?.uids || []),
+                                    ...uidList,
+                                ]),
+                            ];
+                        }
+                        if (options.sessionOverride) {
+                            if (!customConfig.prepare) customConfig.prepare = {};
+                            if (!customConfig.prepare.session) customConfig.prepare.session = {};
+                            if (!customConfig.prepare.session.overrides) {
+                                customConfig.prepare.session.overrides = {};
+                            }
+                            for (const pair of options.sessionOverride) {
+                                const [pid, sStr] = pair.split(':');
+                                const sNum = parseInt(sStr, 10);
+                                if (pid && !isNaN(sNum) && sNum > 0) {
+                                    customConfig.prepare.session.overrides[pid.trim()] = sNum;
+                                }
+                            }
+                        }
+                    }
+
                     const summary = await syncThread(threadId, {
                         dataDir: options.dataDir,
                         htmlContent,
+                        configPath: options.config,
+                        config: customConfig,
                         metadataOnly: options.metadataOnly,
                         force: options.force,
                         targetPostId: options.post,
