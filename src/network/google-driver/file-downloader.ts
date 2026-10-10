@@ -147,7 +147,7 @@ export async function downloadGDriveSubmission(
             skippedFiles: [],
             failedFiles: [],
             totalBytes: 0,
-            warnings: [`URL không hợp lệ hoặc không phải định dạng Google Drive: "${url}"`],
+            warnings: ['DRIVE_INVALID_URL'],
         };
     }
 
@@ -225,7 +225,9 @@ export async function downloadGDriveSubmission(
                 skippedFiles: [],
                 failedFiles: [{ name: fileName, error: (err as Error).message }],
                 totalBytes: 0,
-                warnings: [(err as Error).message],
+                warnings: [
+                    accessStatus === 'not_found' ? 'DRIVE_NOT_FOUND' : 'DRIVE_ACCESS_DENIED',
+                ],
             };
         }
     }
@@ -236,12 +238,12 @@ export async function downloadGDriveSubmission(
 
         // 1. Kiểm tra quyền truy cập (Restricted / Not Found)
         if (metadata.accessStatus !== 'public') {
-            const warningMsg =
+            const warningCode =
                 metadata.accessStatus === 'restricted'
-                    ? '⚠️ Thư mục/tệp bị hạn chế quyền truy cập! Học viên chưa bật "Bất kỳ ai có liên kết đều có thể xem" (Anyone with the link can view). Vui lòng yêu cầu học viên cập nhật quyền chia sẻ trên Google Drive.'
+                    ? 'DRIVE_ACCESS_DENIED'
                     : metadata.accessStatus === 'not_found'
-                      ? '❌ Thư mục hoặc tệp không tồn tại trên Google Drive (404 Not Found).'
-                      : metadata.accessReason || 'URL không hợp lệ';
+                      ? 'DRIVE_NOT_FOUND'
+                      : 'DRIVE_INVALID_URL';
 
             return {
                 success: false,
@@ -252,7 +254,7 @@ export async function downloadGDriveSubmission(
                 skippedFiles: [],
                 failedFiles: [],
                 totalBytes: 0,
-                warnings: [warningMsg, ...metadata.warnings],
+                warnings: metadata.warnings.length > 0 ? metadata.warnings : [warningCode],
                 manifest: metadata,
             };
         }
@@ -268,10 +270,7 @@ export async function downloadGDriveSubmission(
                 skippedFiles: [],
                 failedFiles: [],
                 totalBytes: 0,
-                warnings:
-                    metadata.warnings.length > 0
-                        ? metadata.warnings
-                        : ['Không tìm thấy file CAD hợp lệ trong thư mục'],
+                warnings: metadata.warnings.length > 0 ? metadata.warnings : ['DRIVE_NO_CAD_FILES'],
                 manifest: metadata,
             };
         }

@@ -69,9 +69,7 @@ describe('Post Ingestion Worker', () => {
         expect(summaryContent.userFolder).toBe('Student_A_5001');
         expect(summaryContent.sessionIndex).toBeUndefined();
         expect(summaryContent.sessionOverride).toBeNull();
-        expect(summaryContent.warnings).toContain(
-            'SESSION_OVERRIDE_REQUIRED: set session.overrides in config.json and rerun'
-        );
+        expect(summaryContent.warnings).toContain('SESSION_OVERRIDE_REQUIRED');
         expect(record.syncStatus).toBe('synced');
     });
 

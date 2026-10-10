@@ -18,6 +18,7 @@ import type {
     CadFileSummary,
 } from '../types/manifest.js';
 import { ensureDir, findFilesByExtension } from '../../utils/file-utils.js';
+import { readImageDimensions } from '../../utils/image-utils.js';
 import { downloadImages } from '../../network/image-downloader.js';
 import { downloadGDriveSubmission } from '../../network/google-driver/index.js';
 import { parseCadMetadata } from '../../cad/ole-parser.js';
@@ -119,11 +120,22 @@ export async function processPost(
         });
 
         for (const item of downloadResults) {
+            let width: number | undefined;
+            let height: number | undefined;
+            if (item.success && item.destPath && fs.existsSync(item.destPath)) {
+                const dims = readImageDimensions(item.destPath);
+                if (dims) {
+                    width = dims.width;
+                    height = dims.height;
+                }
+            }
             forumImages.push({
                 originalUrl: item.url,
                 localPath: item.destPath ? path.relative(postDir, item.destPath) : undefined,
                 fileName: item.destPath ? path.basename(item.destPath) : undefined,
                 fileSizeBytes: item.sizeBytes,
+                width,
+                height,
                 status: item.success ? 'downloaded' : 'failed',
                 error: item.error,
             });

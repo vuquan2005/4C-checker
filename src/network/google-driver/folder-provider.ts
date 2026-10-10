@@ -34,14 +34,14 @@ export function detectHtmlAccessStatus(
     if (httpStatus === 404) {
         return {
             status: 'not_found',
-            reason: 'Google Drive báo lỗi 404 (Không tìm thấy thư mục hoặc tệp)',
+            reason: 'DRIVE_NOT_FOUND',
         };
     }
 
     if (httpStatus === 401 || httpStatus === 403) {
         return {
             status: 'restricted',
-            reason: 'Google Drive từ chối quyền truy cập (HTTP 401/403 - Chưa mở quyền chia sẻ công khai)',
+            reason: 'DRIVE_ACCESS_DENIED',
         };
     }
 
@@ -52,7 +52,7 @@ export function detectHtmlAccessStatus(
     ) {
         return {
             status: 'restricted',
-            reason: 'Thư mục/tệp bị hạn chế quyền truy cập (bị chuyển hướng đến trang đăng nhập Google Account)',
+            reason: 'DRIVE_ACCESS_DENIED',
         };
     }
 
@@ -69,7 +69,7 @@ export function detectHtmlAccessStatus(
     if (hasRestrictedPhrases && !html.includes('_DRIVE_ivd')) {
         return {
             status: 'restricted',
-            reason: 'Học viên chưa mở quyền truy cập (Chưa bật "Bất kỳ ai có liên kết đều có thể xem")',
+            reason: 'DRIVE_ACCESS_DENIED',
         };
     }
 
@@ -82,7 +82,7 @@ export function detectHtmlAccessStatus(
     if (hasNotFoundPhrases && !html.includes('_DRIVE_ivd')) {
         return {
             status: 'not_found',
-            reason: 'Thư mục hoặc tệp không tồn tại (404 Not Found)',
+            reason: 'DRIVE_NOT_FOUND',
         };
     }
 

@@ -158,6 +158,8 @@ export interface ForumImageDownloadSummary {
     localPath?: string;
     fileName?: string;
     fileSizeBytes?: number;
+    width?: number;
+    height?: number;
     status: 'downloaded' | 'failed' | 'skipped';
     error?: string;
 }

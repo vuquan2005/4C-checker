@@ -108,6 +108,12 @@ export interface SessionAnalysisCriteria {
     deadline?: string;
     minCadFiles?: number;
     minImages?: number;
+    /** Minimum allowed image file size in bytes (defaults to 10240 bytes / 10KB) */
+    minImageSizeBytes?: number;
+    /** Minimum allowed image width in pixels (defaults to 150px) */
+    minImageWidth?: number;
+    /** Minimum allowed image height in pixels (defaults to 100px) */
+    minImageHeight?: number;
     requiredFilePatterns?: string[];
     maxAllowedInventorVersion?: number;
 }

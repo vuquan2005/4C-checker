@@ -208,4 +208,43 @@ describe('Post Evaluator', () => {
         const resRestricted = evaluatePostSubmission(restrictedPost);
         expect(resRestricted.criteriaViolations).toContain('DRIVE_ACCESS_DENIED');
     });
+
+    it('detects and flags forum images that are too small in size or dimensions', () => {
+        const smallImgPost: PostData = {
+            ...mockPostData,
+            forumImages: [
+                {
+                    originalUrl: 'https://example.com/tiny.png',
+                    fileName: 'tiny.png',
+                    fileSizeBytes: 200, // too small (< 5000)
+                    status: 'downloaded',
+                },
+                {
+                    originalUrl: 'https://example.com/dim_small.png',
+                    fileName: 'dim_small.png',
+                    fileSizeBytes: 20000,
+                    width: 50, // too small (< 100)
+                    height: 50, // too small (< 80)
+                    status: 'downloaded',
+                },
+            ],
+        };
+
+        const result = evaluatePostSubmission(smallImgPost, {
+            minImages: 1,
+            minImageSizeBytes: 5000,
+            minImageWidth: 100,
+            minImageHeight: 80,
+        });
+
+        expect(result.passedCriteria).toBe(false);
+        expect(result.validImageCount).toBe(0);
+        expect(
+            result.criteriaViolations.some((v) => v.startsWith('IMAGE_TOO_SMALL:tiny.png'))
+        ).toBe(true);
+        expect(
+            result.criteriaViolations.some((v) => v.startsWith('IMAGE_TOO_SMALL:dim_small.png'))
+        ).toBe(true);
+        expect(result.criteriaViolations.some((v) => v.includes('INSUFFICIENT_IMAGES'))).toBe(true);
+    });
 });

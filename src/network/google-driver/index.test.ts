@@ -172,7 +172,7 @@ describe('GDrive Downloader Module', () => {
         it('handles invalid URL gracefully', async () => {
             const result = await downloadGDriveSubmission('https://google.com', tempDir);
             expect(result.success).toBe(false);
-            expect(result.warnings[0]).toContain('URL không hợp lệ');
+            expect(result.warnings[0]).toBe('DRIVE_INVALID_URL');
         });
 
         it('downloads single file directly using mocked stream', async () => {
@@ -240,7 +240,7 @@ describe('GDrive Downloader Module', () => {
 
             expect(result.success).toBe(false);
             expect(result.accessStatus).toBe('restricted');
-            expect(result.warnings.some((w) => w.includes('hạn chế quyền truy cập'))).toBe(true);
+            expect(result.warnings).toContain('DRIVE_ACCESS_DENIED');
         });
 
         it('saves .gdrive-manifest.json and skips unchanged files on subsequent runs in incremental mode', async () => {
@@ -380,7 +380,7 @@ describe('GDrive Downloader Module', () => {
                 'https://accounts.google.com/ServiceLogin'
             );
             expect(result.status).toBe('restricted');
-            expect(result.reason).toContain('hạn chế quyền truy cập');
+            expect(result.reason).toBe('DRIVE_ACCESS_DENIED');
         });
 
         it('identifies restricted access from English and Vietnamese warning phrases', () => {
@@ -519,7 +519,7 @@ describe('GDrive Downloader Module', () => {
             );
             expect(meta.accessStatus).toBe('restricted');
             expect(meta.totalFiles).toBe(0);
-            expect(meta.warnings[0]).toContain('quyền truy cập');
+            expect(meta.warnings[0]).toBe('DRIVE_ACCESS_DENIED');
         });
 
         it('returns public metadata with file list when folder is accessible', async () => {

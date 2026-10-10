@@ -18,10 +18,7 @@ describe('Session Resolver', () => {
         expect(result.inferredSession).toBe(3);
         expect(result.sessionIndex).toBeUndefined();
         expect(result.sessionSource).toBeUndefined();
-        expect(result.warnings).toEqual([
-            'SESSION_CONFLICT:2->3',
-            'SESSION_OVERRIDE_REQUIRED: set session.overrides in config.json and rerun',
-        ]);
+        expect(result.warnings).toEqual(['SESSION_CONFLICT:2->3', 'SESSION_OVERRIDE_REQUIRED']);
     });
 
     it('uses a manual override to resolve a conflict', () => {
@@ -39,9 +36,6 @@ describe('Session Resolver', () => {
         const result = resolveSession('Nộp bài CAD', undefined);
         expect(result.sessionIndex).toBeUndefined();
         expect(result.sessionSource).toBeUndefined();
-        expect(result.warnings).toEqual([
-            'SESSION_NOT_FOUND',
-            'SESSION_OVERRIDE_REQUIRED: set session.overrides in config.json and rerun',
-        ]);
+        expect(result.warnings).toEqual(['SESSION_NOT_FOUND', 'SESSION_OVERRIDE_REQUIRED']);
     });
 });

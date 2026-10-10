@@ -122,9 +122,14 @@ Cấu hình nằm tại mục `"analysis"` trong `data/<threadId>/config.json`:
 | **Session**  | `SESSION_AMBIGUOUS:<list>`                  | Bài viết nhắc đến nhiều số buổi (khai báo mơ hồ, vd: `2,1`)     |
 | **Session**  | `SESSION_CONFLICT:<decl>-><inf>`            | Xung đột giữa số buổi khai báo và suy luận (vd: `1->2`)         |
 | **Session**  | `SESSION_NOT_FOUND`                         | Không tìm thấy số buổi nộp bài trong bài viết                   |
+| **Session**  | `SESSION_OVERRIDE_REQUIRED`                 | Cần cấu hình session.overrides trong config.json                |
 | **Session**  | `SESSION_OVERRIDE_APPLIED:<session>`        | Trạng thái bài viết đã được giảng viên can thiệp ghi đè số buổi |
+| **Cú pháp**  | `UNRENDERED_URL`                            | Link dán thô chưa gắn thẻ BBCode                                |
+| **Cú pháp**  | `INVALID_IMAGE_URL`                         | Link ảnh không hợp lệ                                           |
+| **Cú pháp**  | `MALFORMED_BBCODE`                          | Thẻ BBCode bị lỗi định dạng                                     |
 | **Tiêu chí** | `INSUFFICIENT_CAD_FILES:<actual>/<min>`     | Thiếu số lượng tệp CAD yêu cầu                                  |
-| **Tiêu chí** | `INSUFFICIENT_IMAGES:<actual>/<min>`        | Thiếu số lượng ảnh bài tập yêu cầu                              |
+| **Tiêu chí** | `INSUFFICIENT_IMAGES:<actual>/<min>`        | Thiếu số lượng ảnh bài tập hợp lệ đạt chuẩn                     |
+| **Tiêu chí** | `IMAGE_TOO_SMALL:<fileName>:<details>`      | Ảnh tải về quá nhỏ (không đạt kích thước/dung lượng tiêu chuẩn) |
 | **Tiêu chí** | `LATE_SUBMISSION:<postDate>><deadline>`     | Nộp bài sau hạn chót quy định                                   |
 | **Tiêu chí** | `EXCEEDED_MAX_INVENTOR_VERSION:<ver>><max>` | Phiên bản Inventor vượt quá trần cho phép                       |
 | **File CAD** | `INVENTOR_VERSION_TOO_NEW:<ver>><max>`      | File CAD tạo bằng phiên bản Inventor mới hơn yêu cầu            |
@@ -134,6 +139,9 @@ Cấu hình nằm tại mục `"analysis"` trong `data/<threadId>/config.json`:
   - `deadline`: Hạn chót nộp bài (so sánh với `postDate`).
   - `minCadFiles`: Số lượng file CAD tối thiểu phải nộp.
   - `minImages`: Số lượng ảnh chụp bài tập đính kèm tối thiểu.
+  - `minImageSizeBytes`: Dung lượng file ảnh tối thiểu (mặc định: `10240` bytes = 10KB, lọc bỏ ảnh rác/pixel theo dõi).
+  - `minImageWidth`: Chiều rộng pixel tối thiểu (mặc định: `150` px).
+  - `minImageHeight`: Chiều cao pixel tối thiểu (mặc định: `100` px).
   - `maxAllowedInventorVersion`: Giới hạn phiên bản phần mềm Inventor (ví dụ không cho dùng 2026 nếu lớp học dùng 2024).
 
 ---

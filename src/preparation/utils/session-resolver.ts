@@ -66,7 +66,7 @@ export function resolveSession(
             declaredSessions.length > 1 ||
             (declaredSession === undefined && inferredSession === undefined))
     ) {
-        warnings.push('SESSION_OVERRIDE_REQUIRED: set session.overrides in config.json and rerun');
+        warnings.push('SESSION_OVERRIDE_REQUIRED');
     }
 
     if (sessionOverride !== undefined) {

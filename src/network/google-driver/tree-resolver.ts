@@ -105,12 +105,18 @@ export async function resolveTargetFiles(
         });
     } catch (err) {
         if (err instanceof GDriveAccessError) {
+            const errCode =
+                err.status === 'not_found'
+                    ? 'DRIVE_NOT_FOUND'
+                    : err.status === 'invalid_url'
+                      ? 'DRIVE_INVALID_URL'
+                      : 'DRIVE_ACCESS_DENIED';
             return {
                 targetFolderId: folderId,
                 files: [],
-                warnings: [err.message],
+                warnings: [errCode],
                 accessStatus: err.status,
-                accessReason: err.message,
+                accessReason: errCode,
             };
         }
         throw err;
@@ -120,7 +126,7 @@ export async function resolveTargetFiles(
         return {
             targetFolderId: folderId,
             files: [],
-            warnings: ['Thư mục rỗng (không chứa file hoặc thư mục con nào)'],
+            warnings: ['DRIVE_EMPTY_FOLDER'],
             accessStatus: 'public',
         };
     }
@@ -146,9 +152,7 @@ export async function resolveTargetFiles(
                     targetFolderId: subRes.targetFolderId || matched.id,
                 };
             } else {
-                warnings.push(
-                    `Không tìm thấy thư mục con nào khớp với từ khóa: [${options.keywords.join(', ')}]`
-                );
+                warnings.push(`DRIVE_SUBFOLDER_NOT_FOUND:${options.keywords.join(',')}`);
             }
         }
     }
@@ -186,9 +190,7 @@ export async function resolveTargetFiles(
     );
 
     if (validFiles.length === 0) {
-        warnings.push(
-            `Không tìm thấy file CAD hợp lệ trong thư mục này (${allowedExts.join(', ')})`
-        );
+        warnings.push('DRIVE_NO_CAD_FILES');
     }
 
     return {
@@ -213,12 +215,12 @@ export async function fetchSubmissionMetadata(
             url,
             type: 'unknown',
             accessStatus: 'invalid_url',
-            accessReason: `URL không hợp lệ hoặc không phải định dạng Google Drive: "${url}"`,
+            accessReason: 'DRIVE_INVALID_URL',
             fetchedAt: new Date().toISOString(),
             files: [],
             totalFiles: 0,
             totalBytes: 0,
-            warnings: [`URL không hợp lệ hoặc không phải định dạng Google Drive: "${url}"`],
+            warnings: ['DRIVE_INVALID_URL'],
         };
     }
 
@@ -275,16 +277,18 @@ export async function fetchSubmissionMetadata(
             const html = await res.text();
             const accessCheck = detectHtmlAccessStatus(html, res.url, res.status);
             if (accessCheck.status !== 'public') {
+                const code =
+                    accessCheck.status === 'not_found' ? 'DRIVE_NOT_FOUND' : 'DRIVE_ACCESS_DENIED';
                 return {
                     url,
                     type: 'file',
                     accessStatus: accessCheck.status,
-                    accessReason: accessCheck.reason,
+                    accessReason: code,
                     fetchedAt: new Date().toISOString(),
                     files: [],
                     totalFiles: 0,
                     totalBytes: 0,
-                    warnings: [accessCheck.reason || 'Tệp bị hạn chế quyền truy cập'],
+                    warnings: [code],
                 };
             }
 
@@ -316,17 +320,17 @@ export async function fetchSubmissionMetadata(
                 totalBytes: 0,
                 warnings: [],
             };
-        } catch (err) {
+        } catch {
             return {
                 url,
                 type: 'file',
                 accessStatus: 'restricted',
-                accessReason: (err as Error).message,
+                accessReason: 'DRIVE_ACCESS_DENIED',
                 fetchedAt: new Date().toISOString(),
                 files: [],
                 totalFiles: 0,
                 totalBytes: 0,
-                warnings: [(err as Error).message],
+                warnings: ['DRIVE_ACCESS_DENIED'],
             };
         }
     }

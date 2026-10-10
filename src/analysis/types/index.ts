@@ -135,8 +135,11 @@ export interface PostAnalysisResult {
     /** Cad analysis results */
     cadEvaluation: PostCadEvaluation;
 
-    /** Number of forum screenshot images attached */
+    /** Number of total forum screenshot images attached */
     imageCount: number;
+
+    /** Number of valid forum screenshot images that meet size/dimension thresholds */
+    validImageCount: number;
 
     /** Drive download status */
     driveStatus: string;
@@ -165,6 +168,9 @@ export interface PostAnalysisResult {
     /** Categorized Google Drive download and folder layout warnings */
     driveWarnings: string[];
 
+    /** Categorized image size, download, and dimension warnings */
+    imageWarnings: string[];
+
     /** IDs of plagiarism clusters this post is involved in */
     involvedClusterIds: string[];
 }
@@ -178,6 +184,9 @@ export interface SessionAnalysisSummary {
     deadline?: string;
     minCadFiles?: number;
     minImages?: number;
+    minImageSizeBytes?: number;
+    minImageWidth?: number;
+    minImageHeight?: number;
     maxAllowedInventorVersion?: number;
 
     /** Counts */

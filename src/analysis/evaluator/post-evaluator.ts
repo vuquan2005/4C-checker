@@ -244,11 +244,51 @@ export function evaluatePostSubmission(
         );
     }
 
-    // 6. Minimum Images
+    // 6. Minimum Images & Image Size/Quality Validation
     const minImages = criteria?.minImages ?? 0;
-    const imageCount = postData.forumImages?.length ?? 0;
-    if (minImages > 0 && imageCount < minImages) {
-        criteriaViolations.push(`INSUFFICIENT_IMAGES:${imageCount}/${minImages}`);
+    const minImageSizeBytes = criteria?.minImageSizeBytes ?? 5000;
+    const minImageWidth = criteria?.minImageWidth ?? 100;
+    const minImageHeight = criteria?.minImageHeight ?? 80;
+
+    let validImageCount = 0;
+    const imageWarnings: string[] = [];
+
+    for (const img of postData.forumImages ?? []) {
+        // Skip failed downloads
+        if (img.status !== 'downloaded') {
+            continue;
+        }
+
+        const size = img.fileSizeBytes ?? 0;
+        let isTooSmall = false;
+        let reason = '';
+
+        if (size > 0 && size < minImageSizeBytes) {
+            isTooSmall = true;
+            reason = `${size}B<${minImageSizeBytes}B`;
+        }
+
+        const width = img.width;
+        const height = img.height;
+        if (width !== undefined && height !== undefined) {
+            if (width < minImageWidth || height < minImageHeight) {
+                isTooSmall = true;
+                const dimReason = `${width}x${height}<${minImageWidth}x${minImageHeight}`;
+                reason = reason ? `${reason}, ${dimReason}` : dimReason;
+            }
+        }
+
+        if (isTooSmall) {
+            const warnCode = `IMAGE_TOO_SMALL:${img.fileName || 'image'}:${reason}`;
+            imageWarnings.push(warnCode);
+            criteriaViolations.push(warnCode);
+        } else {
+            validImageCount++;
+        }
+    }
+
+    if (minImages > 0 && validImageCount < minImages) {
+        criteriaViolations.push(`INSUFFICIENT_IMAGES:${validImageCount}/${minImages}`);
     }
 
     // 7. Max Inventor Version Violation
@@ -271,6 +311,9 @@ export function evaluatePostSubmission(
     const filteredDriveWarnings = driveWarnings.filter(
         (d) => !isIgnored(d, postData.postId, ignoreConfig)
     );
+    const filteredImageWarnings = imageWarnings.filter(
+        (i) => !isIgnored(i, postData.postId, ignoreConfig)
+    );
 
     const warnings = [...(postData.warnings ?? [])];
 
@@ -288,7 +331,8 @@ export function evaluatePostSubmission(
         sessionOverride: postData.sessionOverride,
         sessionSource: postData.sessionSource,
         cadEvaluation,
-        imageCount,
+        imageCount: postData.forumImages?.length ?? 0,
+        validImageCount,
         driveStatus: postData.driveFiles?.status ?? 'unknown',
         isLate,
         sessionDeadline: criteria?.deadline,
@@ -298,87 +342,7 @@ export function evaluatePostSubmission(
         urlWarnings: filteredUrlWarnings,
         sessionWarnings: filteredSessionWarnings,
         driveWarnings: filteredDriveWarnings,
+        imageWarnings: filteredImageWarnings,
         involvedClusterIds: [],
     };
-}
-
-/**
- * Formats a raw criteria violation code into human-readable text for CLI/UI
- */
-export function formatViolationMessage(code: string): string {
-    if (code.startsWith('SESSION_AMBIGUOUS:')) {
-        const raw = code.replace('SESSION_AMBIGUOUS:', '');
-        const sessions = raw ? `[${raw.split(',').join(', ')}]` : '';
-        return `SESSION_AMBIGUOUS: Phát hiện nhiều số buổi ${sessions} trong bài viết`;
-    }
-    if (code.startsWith('SESSION_CONFLICT:')) {
-        const [decl, inf] = code.replace('SESSION_CONFLICT:', '').split('->');
-        return `SESSION_CONFLICT: Xung đột số buổi (khai báo Buổi ${decl}, suy luận Buổi ${inf})`;
-    }
-    if (code === 'SESSION_NOT_FOUND') {
-        return 'SESSION_NOT_FOUND: Không tìm thấy số buổi nộp bài trong bài viết';
-    }
-    if (code === 'DRIVE_NOT_FOUND') {
-        return 'DRIVE_NOT_FOUND: Không tìm thấy liên kết Google Drive nộp bài';
-    }
-    if (code === 'DRIVE_NO_CAD_FILES') {
-        return 'DRIVE_NO_CAD_FILES: Không tìm thấy tệp CAD hợp lệ trong thư mục Google Drive';
-    }
-    if (code.startsWith('DRIVE_SUBFOLDER_NOT_FOUND:')) {
-        const kw = code.replace('DRIVE_SUBFOLDER_NOT_FOUND:', '').trim();
-        return `DRIVE_SUBFOLDER_NOT_FOUND: Không tìm thấy thư mục con khớp với từ khóa [${kw}]`;
-    }
-    if (code === 'DRIVE_SUBFOLDER_NOT_FOUND') {
-        return 'DRIVE_SUBFOLDER_NOT_FOUND: Không tìm thấy thư mục con tương ứng';
-    }
-    if (code === 'DRIVE_EMPTY_FOLDER') {
-        return 'DRIVE_EMPTY_FOLDER: Thư mục Google Drive rỗng';
-    }
-    if (code === 'DRIVE_ACCESS_DENIED') {
-        return 'DRIVE_ACCESS_DENIED: Tệp/thư mục Google Drive bị giới hạn quyền truy cập';
-    }
-    if (code === 'DRIVE_INVALID_URL') {
-        return 'DRIVE_INVALID_URL: Liên kết Google Drive không hợp lệ';
-    }
-    if (code === 'DRIVE_DOWNLOAD_FAILED') {
-        return 'DRIVE_DOWNLOAD_FAILED: Lỗi khi tải dữ liệu từ Google Drive';
-    }
-    if (code.startsWith('DRIVE_ERROR:')) {
-        return `DRIVE_ERROR: ${code.replace('DRIVE_ERROR:', '').trim()}`;
-    }
-    if (code.startsWith('INSUFFICIENT_CAD_FILES:')) {
-        const [actual, min] = code.replace('INSUFFICIENT_CAD_FILES:', '').split('/');
-        return `INSUFFICIENT_CAD_FILES: Chỉ nộp ${actual} tệp CAD (yêu cầu tối thiểu ${min})`;
-    }
-    if (code.startsWith('INSUFFICIENT_IMAGES:')) {
-        const [actual, min] = code.replace('INSUFFICIENT_IMAGES:', '').split('/');
-        return `INSUFFICIENT_IMAGES: Đính kèm ${actual} ảnh (yêu cầu tối thiểu ${min})`;
-    }
-    if (code.startsWith('LATE_SUBMISSION:')) {
-        const [postDate, deadline] = code.replace('LATE_SUBMISSION:', '').split('>');
-        return `LATE_SUBMISSION: Nộp bài lúc ${postDate} (sau hạn chót ${deadline})`;
-    }
-    if (code.startsWith('EXCEEDED_MAX_INVENTOR_VERSION:')) {
-        const [versions, max] = code.replace('EXCEEDED_MAX_INVENTOR_VERSION:', '').split('>');
-        return `EXCEEDED_MAX_INVENTOR_VERSION: Phiên bản Inventor ${versions} vượt quá giới hạn ${max}`;
-    }
-    if (code.startsWith('INVENTOR_VERSION_TOO_NEW:')) {
-        const [actual, max] = code.replace('INVENTOR_VERSION_TOO_NEW:', '').split('>');
-        return `INVENTOR_VERSION_TOO_NEW: Phiên bản Inventor ${actual} vượt quá yêu cầu tối đa ${max}`;
-    }
-    if (code === 'NO_3D_PREVIEW') {
-        return 'NO_3D_PREVIEW: Không tìm thấy ảnh xem trước 3D trong tệp CAD';
-    }
-    return code;
-}
-
-/**
- * Formats a session warning/status code for CLI/UI
- */
-export function formatSessionMessage(code: string): string {
-    if (code.startsWith('SESSION_OVERRIDE_APPLIED:')) {
-        const num = code.replace('SESSION_OVERRIDE_APPLIED:', '');
-        return `Đã ghi đè thành Buổi ${num}`;
-    }
-    return formatViolationMessage(code);
 }

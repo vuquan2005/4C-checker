@@ -2,10 +2,6 @@ import path from 'node:path';
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { analyzeThread } from '../analysis/orchestrator.js';
-import {
-    formatSessionMessage,
-    formatViolationMessage,
-} from '../analysis/evaluator/post-evaluator.js';
 import { parseThreadIdInput } from './network.js';
 
 /**
@@ -184,7 +180,8 @@ export function registerAnalyzeCommands(program: Command): void {
                                 post.criteriaViolations.length > 0 ||
                                 hasActiveSessionWarning ||
                                 post.urlWarnings.length > 0 ||
-                                post.driveWarnings.length > 0
+                                post.driveWarnings.length > 0 ||
+                                post.imageWarnings.length > 0
                             ) {
                                 warnedPosts.push(post);
                             }
@@ -208,19 +205,15 @@ export function registerAnalyzeCommands(program: Command): void {
                                     ` (${pc.cyan(post.author.username)}) - [${sessionLabel}] (Post ID: ${post.postId}):`
                             );
 
-                            // Criteria Violations (Session, Drive, Deadline, CAD files...)
+                            // Criteria Violations (Session, Drive, Deadline, CAD files, Images...)
                             for (const v of post.criteriaViolations) {
-                                console.log(
-                                    pc.red(`    ❌ Vi phạm   : ${formatViolationMessage(v)}`)
-                                );
+                                console.log(pc.red(`    ❌ Vi phạm   : ${v}`));
                             }
 
                             // Session override notifications (only if successfully resolved by override)
                             for (const s of post.sessionWarnings) {
                                 if (s.startsWith('SESSION_OVERRIDE_APPLIED:')) {
-                                    console.log(
-                                        pc.green(`    ✔ Số buổi   : ${formatSessionMessage(s)}`)
-                                    );
+                                    console.log(pc.green(`    ✔ Số buổi   : ${s}`));
                                 }
                             }
 
@@ -234,9 +227,14 @@ export function registerAnalyzeCommands(program: Command): void {
                             // Drive warnings that are not already listed under violations
                             for (const d of post.driveWarnings) {
                                 if (!post.criteriaViolations.includes(d)) {
-                                    console.log(
-                                        pc.blue(`    📁 GDrive    : ${formatViolationMessage(d)}`)
-                                    );
+                                    console.log(pc.blue(`    📁 GDrive    : ${d}`));
+                                }
+                            }
+
+                            // Image warnings that are not already listed under violations
+                            for (const imgWarn of post.imageWarnings) {
+                                if (!post.criteriaViolations.includes(imgWarn)) {
+                                    console.log(pc.yellow(`    🖼️ Ảnh       : ${imgWarn}`));
                                 }
                             }
                         }
