@@ -140,9 +140,7 @@ export function compareCadFiles(
     if (sigA && sigB && sigA === sigB) {
         if (!isTemplate) {
             matchTypes.push('identical_rse_segments');
-            evidence.push(
-                `Trùng khớp 100% bộ 8 mã RSe Storage Segment IDs giữa '${fileA.fileName}' và '${fileB.fileName}' (chứng minh tệp bắt nguồn từ cùng một tệp gốc Autodesk Inventor)`
-            );
+            evidence.push(`RSE_SEGMENT_MATCH:${fileA.fileName}:${fileB.fileName}`);
         }
     }
 
@@ -151,9 +149,8 @@ export function compareCadFiles(
     const geomB = normalizeGeometrySignature(fileB.geometryFingerprint);
     if (geomA && geomB && geomA === geomB && !isTemplate) {
         matchTypes.push('identical_geometry');
-        evidence.push(
-            `Trùng khớp hoàn toàn kích thước phân đoạn B-Rep và mã băm hình học (${fileA.geometryFingerprint?.contentHash})`
-        );
+        const hash = fileA.geometryFingerprint?.contentHash || '';
+        evidence.push(`GEOMETRY_MATCH:${hash}:${fileA.fileName}:${fileB.fileName}`);
     }
 
     // 3. Check Creation Date
@@ -161,7 +158,9 @@ export function compareCadFiles(
     const dateB = normalizeCreationDate(fileB.creationDate);
     if (dateA && dateB && dateA === dateB && !isTemplate) {
         matchTypes.push('identical_creation_date');
-        evidence.push(`Trùng khớp chính xác mốc thời gian tạo ban đầu: '${fileA.creationDate}'`);
+        evidence.push(
+            `CREATION_DATE_MATCH:${fileA.creationDate || ''}:${fileA.fileName}:${fileB.fileName}`
+        );
     }
 
     // 4. Check Footprints (borrowed username / original file path)
@@ -169,13 +168,13 @@ export function compareCadFiles(
     if (footAtoB.borrowedUser) {
         matchTypes.push('borrowed_windows_user');
         evidence.push(
-            `Tệp '${fileA.fileName}' của sinh viên ${fileA.author.username} được lưu bởi Windows User '${fileA.lastSavedByWindowsUser}' trùng với sinh viên ${fileB.author.username}`
+            `BORROWED_WINDOWS_USER:${fileA.lastSavedByWindowsUser || ''}:${fileA.fileName}:${fileB.author.username}`
         );
     }
     if (footAtoB.borrowedPath) {
         matchTypes.push('borrowed_original_path');
         evidence.push(
-            `Đường dẫn gốc của tệp '${fileA.fileName}' ('${fileA.originalFilePath}') chứa dấu vết của sinh viên ${fileB.author.username}`
+            `BORROWED_ORIGINAL_PATH:${fileA.originalFilePath || ''}:${fileA.fileName}:${fileB.author.username}`
         );
     }
 
@@ -183,13 +182,13 @@ export function compareCadFiles(
     if (footBtoA.borrowedUser) {
         matchTypes.push('borrowed_windows_user');
         evidence.push(
-            `Tệp '${fileB.fileName}' của sinh viên ${fileB.author.username} được lưu bởi Windows User '${fileB.lastSavedByWindowsUser}' trùng với sinh viên ${fileA.author.username}`
+            `BORROWED_WINDOWS_USER:${fileB.lastSavedByWindowsUser || ''}:${fileB.fileName}:${fileA.author.username}`
         );
     }
     if (footBtoA.borrowedPath) {
         matchTypes.push('borrowed_original_path');
         evidence.push(
-            `Đường dẫn gốc của tệp '${fileB.fileName}' ('${fileB.originalFilePath}') chứa dấu vết của sinh viên ${fileA.author.username}`
+            `BORROWED_ORIGINAL_PATH:${fileB.originalFilePath || ''}:${fileB.fileName}:${fileA.author.username}`
         );
     }
 

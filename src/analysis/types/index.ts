@@ -50,7 +50,7 @@ export interface PlagiarizedFileRef {
  * A cluster of files/students exhibiting suspicious code/model sharing
  */
 export interface PlagiarismCluster {
-    /** Unique cluster identifier (e.g. "cluster_rse_1", "cluster_geom_2") */
+    /** Unique cluster identifier (e.g. "cluster_1", "cluster_2") */
     clusterId: string;
 
     /** Session index where this cluster belongs, or undefined if cross-session */
@@ -62,29 +62,23 @@ export interface PlagiarismCluster {
     /** Severity rating */
     severity: PlagiarismSeverity;
 
-    /** Human-readable title */
-    title: string;
-
-    /** Human-readable explanation of why this cluster is suspicious */
-    description: string;
-
-    /** Bullet points of factual forensic evidence */
+    /** Standardized forensic evidence codes (e.g. "RSE_SEGMENT_MATCH:fileA:fileB") */
     evidence: string[];
 
-    /** Common signature that grouped these files (e.g. RSe segments string, hash, or creationDate) */
+    /** Common signature that grouped these files (RSe segments string or geometry hash) */
     signature: string;
 
-    /** All files participating in this cluster */
-    files: PlagiarizedFileRef[];
-
-    /** Distinct authors involved */
-    authors: PostAuthorSummary[];
-
-    /** Suspected original submission (e.g. earliest postDate or earliest save date) */
+    /** Suspected original submission (earliest postDate or earliest save date) */
     suspectedOriginal?: PlagiarizedFileRef;
 
     /** Suspected copy submissions */
     suspectedCopies: PlagiarizedFileRef[];
+
+    /** Optional title */
+    title?: string;
+
+    /** Optional explanation */
+    description?: string;
 }
 
 /**
@@ -199,8 +193,8 @@ export interface SessionAnalysisSummary {
     /** Submissions in this session */
     posts: PostAnalysisResult[];
 
-    /** Plagiarism clusters detected within this session */
-    clusters: PlagiarismCluster[];
+    /** Plagiarism cluster IDs detected within this session */
+    clusterIds: string[];
 }
 
 /**

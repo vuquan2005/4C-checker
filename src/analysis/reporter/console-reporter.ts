@@ -32,6 +32,39 @@ export function printOverviewStats(stats: AnalysisSummaryStats): void {
 }
 
 /**
+ * Formats standardized forensic evidence codes into human-readable terminal text
+ */
+export function formatEvidenceForDisplay(code: string): string {
+    const parts = code.split(':');
+    const type = parts[0];
+
+    switch (type) {
+        case 'RSE_SEGMENT_MATCH': {
+            const [, fileA, fileB] = parts;
+            return `Trùng khớp 100% bộ 8 mã RSe Storage Segment IDs giữa '${fileA || 'File A'}' và '${fileB || 'File B'}' (cùng file gốc Inventor)`;
+        }
+        case 'GEOMETRY_MATCH': {
+            const [, hash, fileA, fileB] = parts;
+            return `Trùng khớp hoàn toàn mã băm hình học 3D B-Rep (${hash}) giữa '${fileA || 'File A'}' và '${fileB || 'File B'}'`;
+        }
+        case 'CREATION_DATE_MATCH': {
+            const [, date, fileA, fileB] = parts;
+            return `Trùng khớp chính xác mốc thời gian tạo ban đầu '${date}' giữa '${fileA || 'File A'}' và '${fileB || 'File B'}'`;
+        }
+        case 'BORROWED_WINDOWS_USER': {
+            const [, user, file, target] = parts;
+            return `Tệp '${file}' lưu bởi Windows User '${user}' trùng dấu vết với sinh viên ${target}`;
+        }
+        case 'BORROWED_ORIGINAL_PATH': {
+            const [, p, file, target] = parts;
+            return `Đường dẫn gốc '${p}' của tệp '${file}' chứa dấu vết thư mục sinh viên ${target}`;
+        }
+        default:
+            return code;
+    }
+}
+
+/**
  * Prints detected plagiarism clusters to console
  */
 export function printPlagiarismClusters(
@@ -63,8 +96,16 @@ export function printPlagiarismClusters(
                     ? pc.cyan(`[Buổi ${cluster.sessionIndex}]`)
                     : pc.magenta('[Xuyên Buổi]');
 
-            console.log(`${badge} ${sessionTag} ${pc.bold(cluster.title)}`);
-            console.log(`   ${pc.gray('Mô tả:')} ${cluster.description}`);
+            const targetName = cluster.suspectedOriginal?.fileName || cluster.clusterId;
+            const matchLabel = cluster.matchTypes.join(', ');
+            const headerTitle =
+                cluster.title ||
+                `Cụm vi phạm [${cluster.clusterId}] (${matchLabel}): ${targetName}`;
+
+            console.log(`${badge} ${sessionTag} ${pc.bold(headerTitle)}`);
+            if (cluster.description) {
+                console.log(`   ${pc.gray('Mô tả:')} ${cluster.description}`);
+            }
 
             if (cluster.suspectedOriginal) {
                 console.log(
@@ -83,7 +124,7 @@ export function printPlagiarismClusters(
 
             console.log(`   ${pc.gray('Bằng chứng forensic:')}`);
             for (const ev of cluster.evidence) {
-                console.log(`     • ${ev}`);
+                console.log(`     • ${formatEvidenceForDisplay(ev)}`);
             }
             console.log('');
         }

@@ -105,6 +105,15 @@ describe('Similarity Matcher', () => {
         expect(comparison.matchTypes).toContain('identical_geometry');
         expect(comparison.matchTypes).toContain('identical_creation_date');
         expect(comparison.matchTypes).toContain('borrowed_original_path');
+        expect(comparison.evidence).toContain('RSE_SEGMENT_MATCH:part1.ipt:bai1.ipt');
+        expect(comparison.evidence).toContain('GEOMETRY_MATCH:hash123:part1.ipt:bai1.ipt');
+        expect(comparison.evidence).toContain(
+            'CREATION_DATE_MATCH:10/01/2026 09:00:00:part1.ipt:bai1.ipt'
+        );
+        for (const ev of comparison.evidence) {
+            expect(ev).not.toMatch(/[à-ỹá-ý]/i);
+            expect(ev).toMatch(/^[A-Z0-9_]+:/);
+        }
     });
 
     it('ignores RSe matching if it matches a template whitelist', () => {

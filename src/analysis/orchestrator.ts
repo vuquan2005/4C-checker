@@ -214,7 +214,11 @@ export async function analyzeThread(
     }
 
     for (const cluster of allClusters) {
-        for (const file of cluster.files) {
+        const clusterFiles = [cluster.suspectedOriginal, ...(cluster.suspectedCopies ?? [])].filter(
+            Boolean
+        ) as PlagiarizedFileRef[];
+
+        for (const file of clusterFiles) {
             const post = postMap.get(file.postId);
             if (post && !post.involvedClusterIds.includes(cluster.clusterId)) {
                 post.involvedClusterIds.push(cluster.clusterId);

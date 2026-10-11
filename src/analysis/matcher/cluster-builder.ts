@@ -88,6 +88,29 @@ function evaluateClusterSeverity(matchTypes: PlagiarismMatchType[]): PlagiarismS
 }
 
 /**
+ * Strips raw internal buffers and binary tokens from file references for the output report
+ */
+function sanitizeFileRef(file: PlagiarizedFileRef): PlagiarizedFileRef {
+    return {
+        postId: file.postId,
+        postNumber: file.postNumber,
+        author: file.author,
+        sessionIndex: file.sessionIndex,
+        postDate: file.postDate,
+        fileName: file.fileName,
+        filePath: file.filePath,
+        localPath: file.localPath,
+        fileSizeBytes: file.fileSizeBytes,
+        creationDate: file.creationDate,
+        lastSavedDate: file.lastSavedDate,
+        lastSavedByWindowsUser: file.lastSavedByWindowsUser,
+        originalFilePath: file.originalFilePath,
+        softwareVersion: file.softwareVersion,
+        previewPath: file.previewPath,
+    };
+}
+
+/**
  * Builds plagiarism clusters from an array of student CAD files
  */
 export function buildPlagiarismClusters(
@@ -119,13 +142,11 @@ export function buildPlagiarismClusters(
         if (distinctAuthors.length < 2) continue;
 
         const sorted = sortFilesChronologically(groupedFiles);
-        const suspectedOriginal = sorted[0];
-        const suspectedCopies = sorted.slice(1);
+        const suspectedOriginal = sanitizeFileRef(sorted[0]);
+        const suspectedCopies = sorted.slice(1).map(sanitizeFileRef);
 
         const matchTypes: PlagiarismMatchType[] = ['identical_rse_segments'];
-        const evidence: string[] = [
-            `Trùng khớp 100% bộ 8 mã RSe Storage Segment IDs giữa các bài nộp của ${distinctAuthors.map((a) => a.username).join(', ')}`,
-        ];
+        const evidence: string[] = [];
 
         // Perform cross file comparisons to accumulate additional evidence
         for (let i = 0; i < sorted.length; i++) {
@@ -148,12 +169,8 @@ export function buildPlagiarismClusters(
             sessionIndex,
             matchTypes,
             severity,
-            title: `Cụm trùng nguồn gốc file RSe: ${suspectedOriginal.fileName}`,
-            description: `Phát hiện ${sorted.length} tệp CAD có cùng phân đoạn nhị phân RSe giữa ${distinctAuthors.length} sinh viên (${distinctAuthors.map((a) => a.username).join(', ')}). Bản nộp sớm nhất thuộc về ${suspectedOriginal.author.username}.`,
             evidence,
             signature: rseSig,
-            files: sorted,
-            authors: distinctAuthors,
             suspectedOriginal,
             suspectedCopies,
         });
@@ -182,13 +199,11 @@ export function buildPlagiarismClusters(
         if (distinctAuthors.length < 2) continue;
 
         const sorted = sortFilesChronologically(groupedFiles);
-        const suspectedOriginal = sorted[0];
-        const suspectedCopies = sorted.slice(1);
+        const suspectedOriginal = sanitizeFileRef(sorted[0]);
+        const suspectedCopies = sorted.slice(1).map(sanitizeFileRef);
 
         const matchTypes: PlagiarismMatchType[] = ['identical_geometry'];
-        const evidence: string[] = [
-            `Trùng khớp mã băm hình học B-Rep (${suspectedOriginal.geometryFingerprint?.contentHash}) giữa ${distinctAuthors.map((a) => a.username).join(', ')}`,
-        ];
+        const evidence: string[] = [];
 
         for (let i = 0; i < sorted.length; i++) {
             for (let j = i + 1; j < sorted.length; j++) {
@@ -210,12 +225,8 @@ export function buildPlagiarismClusters(
             sessionIndex,
             matchTypes,
             severity,
-            title: `Cụm trùng mô hình 3D (B-Rep): ${suspectedOriginal.fileName}`,
-            description: `Phát hiện ${sorted.length} tệp CAD có cùng cấu trúc hình học B-Rep giống hệt nhau giữa ${distinctAuthors.length} sinh viên.`,
             evidence,
             signature: geomSig,
-            files: sorted,
-            authors: distinctAuthors,
             suspectedOriginal,
             suspectedCopies,
         });

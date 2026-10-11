@@ -42,7 +42,7 @@ export function aggregateSessionSummaries(
                 lateSubmissionsCount: 0,
                 clustersCount: 0,
                 posts: [],
-                clusters: [],
+                clusterIds: [],
             };
         }
 
@@ -64,7 +64,7 @@ export function aggregateSessionSummaries(
         if (cluster.sessionIndex !== undefined) {
             const sKey = String(cluster.sessionIndex);
             if (sessions[sKey]) {
-                sessions[sKey].clusters.push(cluster);
+                sessions[sKey].clusterIds.push(cluster.clusterId);
                 sessions[sKey].clustersCount++;
             }
         }

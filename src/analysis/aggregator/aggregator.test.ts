@@ -101,15 +101,8 @@ describe('Aggregator Module', () => {
         sessionIndex: 1,
         matchTypes: ['identical_rse_segments'],
         severity: 'high',
-        title: 'Cluster 1',
-        description: 'Suspicious RSe match',
-        evidence: ['Identical RSe IDs'],
+        evidence: ['RSE_SEGMENT_MATCH:p1.ipt:p2.ipt'],
         signature: 'rse123',
-        files: [],
-        authors: [
-            { uid: 'u1', username: 'Nguyen Van A' },
-            { uid: 'u2', username: 'Tran Van B' },
-        ],
         suspectedCopies: [],
     };
 
@@ -118,15 +111,8 @@ describe('Aggregator Module', () => {
         sessionIndex: undefined, // cross-session
         matchTypes: ['identical_geometry'],
         severity: 'medium',
-        title: 'Cluster 2',
-        description: 'Cross-session match',
-        evidence: ['Geometry match'],
+        evidence: ['GEOMETRY_MATCH:geom123:p1.ipt:p3.ipt'],
         signature: 'geom123',
-        files: [],
-        authors: [
-            { uid: 'u1', username: 'Nguyen Van A' },
-            { uid: 'u3', username: 'Le Van C' },
-        ],
         suspectedCopies: [],
     };
 
@@ -170,8 +156,7 @@ describe('Aggregator Module', () => {
             expect(s1.failedSubmissionsCount).toBe(1);
             expect(s1.lateSubmissionsCount).toBe(1);
             expect(s1.clustersCount).toBe(1);
-            expect(s1.clusters).toHaveLength(1);
-            expect(s1.clusters[0].clusterId).toBe('cluster_1');
+            expect(s1.clusterIds).toEqual(['cluster_1']);
 
             // Session 2 checks (fallback to default criteria)
             const s2 = sessions['2'];

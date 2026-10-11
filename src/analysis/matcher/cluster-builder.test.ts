@@ -275,4 +275,51 @@ describe('Plagiarism Cluster Builder', () => {
         expect(clusters[0].matchTypes).toContain('identical_rse_segments');
         expect(clusters[0].matchTypes).toContain('identical_geometry');
     });
+
+    it('produces standardized machine-readable evidence codes and clean file payloads', () => {
+        const files: PlagiarizedFileRef[] = [
+            {
+                postId: '1',
+                postNumber: 1,
+                author: { uid: '100', username: 'Student A' },
+                sessionIndex: 1,
+                postDate: '2026-10-01T10:00:00Z',
+                creationDate: '10/01/2026 09:00:00',
+                fileName: 'f1.ipt',
+                filePath: '/data/f1.ipt',
+                fileSizeBytes: 1000,
+                rseSegmentIds: mockRse1,
+            },
+            {
+                postId: '2',
+                postNumber: 2,
+                author: { uid: '200', username: 'Student B' },
+                sessionIndex: 1,
+                postDate: '2026-10-01T12:00:00Z',
+                creationDate: '10/01/2026 09:00:00',
+                fileName: 'f2.ipt',
+                filePath: '/data/f2.ipt',
+                fileSizeBytes: 1000,
+                rseSegmentIds: mockRse1,
+            },
+        ];
+
+        const clusters = buildPlagiarismClusters(files);
+        expect(clusters).toHaveLength(1);
+        const cluster = clusters[0];
+
+        // Standardized evidence codes
+        expect(cluster.evidence).toContain('RSE_SEGMENT_MATCH:f1.ipt:f2.ipt');
+        expect(cluster.evidence).toContain('CREATION_DATE_MATCH:10/01/2026 09:00:00:f1.ipt:f2.ipt');
+
+        // No natural language Vietnamese in evidence codes
+        for (const ev of cluster.evidence) {
+            expect(ev).not.toMatch(/[à-ỹá-ý]/i);
+            expect(ev).toMatch(/^[A-Z0-9_]+:/);
+        }
+
+        // Clean file payload: no rseSegmentIds or geometryFingerprint dumps in output
+        expect(cluster.suspectedOriginal?.rseSegmentIds).toBeUndefined();
+        expect(cluster.suspectedCopies[0].rseSegmentIds).toBeUndefined();
+    });
 });
