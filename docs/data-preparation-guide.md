@@ -104,23 +104,24 @@ pnpm dev sync <thread-id-hoặc-url> [tùy_chọn]
 
 ### 2.3. Bảng tham số & tùy chọn (CLI Options)
 
-| Tùy chọn (Option)        | Mặc định     | Ý nghĩa                                                                             |
-| :----------------------- | :----------- | :---------------------------------------------------------------------------------- |
-| `<thread-id-or-url>`     | _(Bắt buộc)_ | ID chủ đề (ví dụ: `1336`) hoặc link bài viết trên diễn đàn                          |
-| `-d, --data-dir <dir>`   | `./data`     | Thư mục gốc lưu trữ dữ liệu                                                         |
-| `-c, --config <file>`    | _None_       | Đường dẫn file cấu hình JSON tùy chỉnh (mặc định tự tìm `config.json` trong thread) |
-| `--ignore-post <ids...>` | _None_       | Danh sách Post ID cần bỏ qua (ví dụ: `--ignore-post 26090 26145`)                   |
-| `--ignore-uid <uids...>` | _None_       | Danh sách User UID cần bỏ qua (ví dụ: `--ignore-uid 27392 27380`)                   |
-| `-m, --metadata-only`    | `false`      | Chỉ đồng bộ metadata vào `thread.json`, bỏ qua tải assets/CAD                       |
-| `--post <id-or-num>`     | _None_       | Chỉ xử lý duy nhất 1 bài viết theo ID hoặc `#postNumber`                            |
-| `--force`                | `false`      | Bắt buộc tải lại tài nguyên dù đã tồn tại trên đĩa                                  |
-| `--concurrency <n>`      | `2`          | Số lượng luồng worker xử lý đồng thời                                               |
-| `-i, --input <file>`     | _None_       | Đọc từ file HTML nội bộ thay vì cào mạng                                            |
-| `--no-images`            | `false`      | Bỏ qua tải ảnh BBCode vào `student_images/`                                         |
-| `--no-drive`             | `false`      | Bỏ qua tải dữ liệu Drive vào `drive_files/`                                         |
-| `--no-cad`               | `false`      | Bỏ qua trích xuất thông tin & preview CAD 3D vào `cad_previews/`                    |
-| `--include-op`           | `false`      | Bao gồm cả bài viết mở đầu (#1) của chủ thớt                                        |
-| `--json`                 | `false`      | Xuất kết quả tổng kết dưới dạng JSON                                                |
+| Tùy chọn (Option)               | Mặc định     | Ý nghĩa                                                                              |
+| :------------------------------ | :----------- | :----------------------------------------------------------------------------------- |
+| `<thread-id-or-url>`            | _(Bắt buộc)_ | ID chủ đề (ví dụ: `1336`) hoặc link bài viết trên diễn đàn                           |
+| `-d, --data-dir <dir>`          | `./data`     | Thư mục gốc lưu trữ dữ liệu                                                          |
+| `-c, --config <file>`           | _None_       | Đường dẫn file cấu hình JSON tùy chỉnh (mặc định tự tìm `config.json` trong thread)  |
+| `--ignore-post <ids...>`        | _None_       | Danh sách Post ID cần bỏ qua (ví dụ: `--ignore-post 26090 26145`)                    |
+| `--ignore-uid <uids...>`        | _None_       | Danh sách User UID cần bỏ qua (ví dụ: `--ignore-uid 27392 27380`)                    |
+| `--session-override <pairs...>` | _None_       | Ghi đè số buổi theo cặp postId:session (ví dụ: `--session-override 26123:2 26167:3`) |
+| `-m, --metadata-only`           | `false`      | Chỉ đồng bộ metadata vào `thread.json`, bỏ qua tải assets/CAD                        |
+| `--post <id-or-num>`            | _None_       | Chỉ xử lý duy nhất 1 bài viết theo ID hoặc `#postNumber`                             |
+| `--force`                       | `false`      | Bắt buộc tải lại tài nguyên dù đã tồn tại trên đĩa                                   |
+| `--concurrency <n>`             | `2`          | Số lượng luồng worker xử lý đồng thời                                                |
+| `-i, --input <file>`            | _None_       | Đọc từ file HTML nội bộ thay vì cào mạng                                             |
+| `--no-images`                   | `false`      | Bỏ qua tải ảnh BBCode vào `student_images/`                                          |
+| `--no-drive`                    | `false`      | Bỏ qua tải dữ liệu Drive vào `drive_files/`                                          |
+| `--no-cad`                      | `false`      | Bỏ qua trích xuất thông tin & preview CAD 3D vào `cad_previews/`                     |
+| `--include-op`                  | `false`      | Bao gồm cả bài viết mở đầu (#1) của chủ thớt                                         |
+| `--json`                        | `false`      | Xuất kết quả tổng kết dưới dạng JSON                                                 |
 
 ---
 
@@ -148,7 +149,11 @@ File `config.json` được tự động khởi tạo khi đồng bộ thread l�
       "usernames": ["Admin", "GiangVien_*"]
     },
     "session": {
-      "keywords": ["buoi", "b", "btvn", "lab", "tuan"]
+      "keywords": ["buoi", "buổi", "b", "btvn", "lab", "tuan", "tuần"],
+      "overrides": {
+        "26123": 2,
+        "26167": 3
+      }
     },
     "drive": {
       "allowedExtensions": [".ipt", ".iam", "ipn", ".ipj", ".idw", ".dwg", ".zip", ".rar"],
@@ -170,8 +175,11 @@ File `config.json` được tự động khởi tạo khi đồng bộ thread l�
   - `postNumbers`: Mảng số thứ tự bài cần bỏ qua (#15, #20...).
   - `uids`: Mảng UID tác giả cần bỏ qua (Giảng viên, Trợ giảng).
   - `usernames`: Mảng tên tác giả cần bỏ qua (hỗ trợ wildcard như `"Admin_*"`).
+- **Cấu hình Buổi học (Session):**
+  - `keywords`: Danh sách từ khóa nhận diện số buổi từ nội dung bài viết sinh viên (ví dụ: `buoi 3`, `b3`, `lab 2`...).
+  - `overrides`: Bản đồ gán cứng số buổi theo Post ID (`{ "<postId>": <sessionNumber> }`). Bài viết được ghi đè ở đây sẽ tự động hóa giải cảnh báo xung đột buổi và tải đúng thư mục buổi trên Google Drive.
 - **Tác động khi chạy lại sync:**
-  Hệ thống sẽ cập nhật trạng thái các bài bị ignore thành `skipProcessing: true` kèm lý do `skipReason: "IGNORED_UID: ..."` trong `thread.json`, đồng thời bỏ qua toàn bộ việc tải ảnh, tải file Google Drive và trích xuất CAD cho những bài này.
+  Hệ thống sẽ cập nhật trạng thái các bài bị ignore thành `skipProcessing: true` kèm lý do `skipReason: "IGNORED_UID: ..."` trong `thread.json`, đồng thời bỏ qua toàn bộ việc tải ảnh, tải file Google Drive và trích xuất CAD cho những bài này. Các bài có trong `session.overrides` sẽ được áp dụng số buổi chuẩn ngay từ đầu.
 
 ---
 
@@ -190,6 +198,7 @@ File `config.json` được tự động khởi tạo khi đồng bộ thread l�
   ```json
   "sessionOverride": 2
   ```
+  _(Khuyên dùng: Bạn cũng có thể thiết lập trực tiếp tại `data/<threadId>/config.json` mục `session.overrides` hoặc qua CLI `--session-override <postId>:2` để cấu hình được lưu tập trung)._
 - **Tác động khi chạy lại sync:**
   Hệ thống so sánh `summary.sessionOverride` với manifest. Khi thấy có sự khác biệt, nó kích hoạt quy trình tải lại Drive với từ khóa tìm kiếm mới (`buoi 2`, `b2`).
 

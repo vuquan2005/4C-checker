@@ -44,7 +44,7 @@ export function registerPrepareCommands(program: Command): void {
             '--session-override <pairs...>',
             'Ghi đè số buổi theo cặp postId:session (ví dụ: --session-override 26123:2 26167:3)'
         )
-        .option('--force', 'Tải lại toàn bộ dữ liệu dù đã tồn tại trên đĩa', false)
+        .option('-f, --force', 'Tải lại toàn bộ dữ liệu dù đã tồn tại trên đĩa', false)
         .option('--post <id-or-num>', 'Chỉ lọc và đồng bộ một bài viết cụ thể')
         .option('--concurrency <n>', 'Số luồng xử lý đồng thời (mặc định: 2)', '2')
         .option('--no-images', 'Bỏ qua tải ảnh forum BBCode')

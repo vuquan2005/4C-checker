@@ -38,4 +38,12 @@ describe('Session Resolver', () => {
         expect(result.sessionSource).toBeUndefined();
         expect(result.warnings).toEqual(['SESSION_NOT_FOUND', 'SESSION_OVERRIDE_REQUIRED']);
     });
+
+    it('does not falsely match numbers inside URLs and sorts keywords descending', () => {
+        const keywords = ['b', 'buổi', 'btvn'];
+        const text = 'Link: https://youtu.be/VxujhZllvB8 - Bài tập buổi 4';
+        const result = resolveSession(text, undefined, undefined, keywords);
+        expect(result.declaredSession).toBe(4);
+        expect(result.sessionIndex).toBe(4);
+    });
 });

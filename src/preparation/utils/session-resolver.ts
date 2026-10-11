@@ -12,13 +12,18 @@ export interface SessionResolution {
 
 function buildSessionRegex(keywords?: string[]): RegExp {
     if (!keywords || keywords.length === 0) {
-        return /(?:buổi|buoi)\s*[-:]?\s*0?(\d+)\b|\bb\s*0?(\d+)\b/giu;
+        return /(?:^|\b|[\s\p{P}\p{S}])(?:buổi|buoi)\s*[-:]?\s*0?(\d+)\b|(?:\b|^|[\s\p{P}\p{S}])b\s*[-:]?\s*0?(\d+)\b/giu;
     }
-    const escapedKeywords = keywords
+    const sortedKeywords = [...keywords]
         .map((k) => k.trim())
         .filter(Boolean)
-        .map((k) => k.replace(/[.+^${}()|[\]\\]/g, '\\$&'));
-    return new RegExp(`(?:${escapedKeywords.join('|')})\\s*[-:]?\\s*0?(\\d+)\\b`, 'giu');
+        .sort((a, b) => b.length - a.length);
+
+    const escapedKeywords = sortedKeywords.map((k) => k.replace(/[.+^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp(
+        `(?:^|\\b|[\\s\\p{P}\\p{S}])(?:${escapedKeywords.join('|')})\\s*[-:]?\\s*0?(\\d+)\\b`,
+        'giu'
+    );
 }
 
 function extractDeclaredSessions(text: string, keywords?: string[]): number[] {

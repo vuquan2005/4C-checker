@@ -40,12 +40,20 @@ export function matchFolderByKeywords(
 
     const normalizedKeywords = keywords.map((k) => removeDiacritics(k).toLowerCase().trim());
 
-    // 1. So khớp Regex chính xác buổi: ví dụ 'buoi 1' -> /\b(buoi|b)\s*0?1\b/i
+    // 1. So khớp Regex chính xác buổi: ví dụ 'buoi 1', 'lab 2', 'btvn 3'
     for (const kw of normalizedKeywords) {
-        const numMatch = kw.match(/(?:buoi|b)\s*0?(\d+)/i);
+        const numMatch = kw.match(/^([a-z_]+)[\s_-]*0*(\d+)$/i);
         if (numMatch) {
-            const sessionNum = numMatch[1];
-            const sessionPattern = new RegExp(`(?:buoi|b)\\s*0?${sessionNum}(?:[^0-9]|$)`, 'i');
+            const rawPrefix = numMatch[1];
+            const prefix =
+                rawPrefix === 'b' || rawPrefix === 'buoi'
+                    ? '(?:buoi|b)'
+                    : rawPrefix.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+            const sessionNum = numMatch[2];
+            const sessionPattern = new RegExp(
+                `(?:^|\\b|[\\s\\p{P}\\p{S}])${prefix}[\\s_-]*0?${sessionNum}(?:[^0-9]|$)`,
+                'iu'
+            );
             for (const folder of subfolders) {
                 const normName = removeDiacritics(folder.name).toLowerCase();
                 if (sessionPattern.test(normName)) {

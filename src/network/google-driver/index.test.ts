@@ -162,6 +162,25 @@ describe('GDrive Downloader Module', () => {
             expect(matched?.id).toBe('f1');
         });
 
+        it('matches custom prefix folders like lab and btvn', () => {
+            const customFolders = [
+                {
+                    id: 'l1',
+                    name: 'Lab_01_Inventor',
+                    mimeType: 'application/vnd.google-apps.folder',
+                    isFolder: true,
+                },
+                {
+                    id: 'b2',
+                    name: 'BTVN 02 - Assembly',
+                    mimeType: 'application/vnd.google-apps.folder',
+                    isFolder: true,
+                },
+            ];
+            expect(matchFolderByKeywords(customFolders, ['lab 1', 'lab1'])?.id).toBe('l1');
+            expect(matchFolderByKeywords(customFolders, ['btvn 2', 'btvn2'])?.id).toBe('b2');
+        });
+
         it('returns null when no keywords match', () => {
             const matched = matchFolderByKeywords(sampleFolders, ['buoi 5', 'b5']);
             expect(matched).toBeNull();

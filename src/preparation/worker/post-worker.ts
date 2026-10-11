@@ -24,6 +24,7 @@ import { downloadGDriveSubmission } from '../../network/google-driver/index.js';
 import { parseCadMetadata } from '../../cad/ole-parser.js';
 import { savePreviewToFile } from '../../cad/preview-extractor.js';
 import { resolveSession } from '../utils/session-resolver.js';
+import { DEFAULT_SESSION_KEYWORDS } from '../../config/config-manager.js';
 
 export interface PostWorkerOptions {
     /** Whether to download forum BBCode images (default: true) */
@@ -161,15 +162,29 @@ export async function processPost(
 
     if (shouldDownloadDrive && driveUrl) {
         try {
+            const sessionKeywordsList =
+                options?.sessionKeywords && options.sessionKeywords.length > 0
+                    ? options.sessionKeywords
+                    : DEFAULT_SESSION_KEYWORDS;
+
+            const driveKeywords =
+                sessionIndex === undefined
+                    ? undefined
+                    : [
+                          ...new Set(
+                              sessionKeywordsList.flatMap((kw) => [
+                                  `${kw} ${sessionIndex}`,
+                                  `${kw}${sessionIndex}`,
+                              ])
+                          ),
+                      ];
+
             const gdriveRes = await downloadGDriveSubmission(driveUrl, driveDir, {
                 incremental: !options?.force,
                 skipIfExists: !options?.force,
                 autoExtractZip: true,
                 allowedExtensions: options?.allowedExtensions,
-                keywords:
-                    sessionIndex === undefined
-                        ? undefined
-                        : [`buoi ${sessionIndex}`, `b${sessionIndex}`],
+                keywords: driveKeywords,
             });
 
             const allFiles = [
