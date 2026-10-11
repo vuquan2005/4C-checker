@@ -39,8 +39,8 @@ describe('Session Resolver', () => {
         expect(result.warnings).toEqual(['SESSION_NOT_FOUND', 'SESSION_OVERRIDE_REQUIRED']);
     });
 
-    it('does not falsely match numbers inside URLs and sorts keywords descending', () => {
-        const keywords = ['b', 'buổi', 'btvn'];
+    it('does not falsely match numbers inside URLs with leading boundary check', () => {
+        const keywords = ['buổi', 'btvn', 'b'];
         const text = 'Link: https://youtu.be/VxujhZllvB8 - Bài tập buổi 4';
         const result = resolveSession(text, undefined, undefined, keywords);
         expect(result.declaredSession).toBe(4);

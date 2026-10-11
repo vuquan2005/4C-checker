@@ -8,7 +8,7 @@ import { ensureDir } from '../utils/file-utils.js';
 import { DEFAULT_ALLOWED_EXTENSIONS } from '../network/google-driver/types.js';
 import type { ThreadConfig } from './types.js';
 
-export const DEFAULT_SESSION_KEYWORDS = ['buoi', 'buổi', 'b', 'btvn', 'lab', 'tuan', 'tuần'];
+export const DEFAULT_SESSION_KEYWORDS = ['buổi', 'buoi', 'btvn', 'tuan', 'tuần', 'lab', 'b'];
 
 /**
  * Returns default ThreadConfig instance populated with sensible standard defaults

@@ -149,7 +149,7 @@ File `config.json` được tự động khởi tạo khi đồng bộ thread l�
       "usernames": ["Admin", "GiangVien_*"]
     },
     "session": {
-      "keywords": ["buoi", "buổi", "b", "btvn", "lab", "tuan", "tuần"],
+      "keywords": ["buổi", "buoi", "btvn", "tuan", "tuần", "lab", "b"],
       "overrides": {
         "26123": 2,
         "26167": 3
@@ -176,7 +176,7 @@ File `config.json` được tự động khởi tạo khi đồng bộ thread l�
   - `uids`: Mảng UID tác giả cần bỏ qua (Giảng viên, Trợ giảng).
   - `usernames`: Mảng tên tác giả cần bỏ qua (hỗ trợ wildcard như `"Admin_*"`).
 - **Cấu hình Buổi học (Session):**
-  - `keywords`: Danh sách từ khóa nhận diện số buổi từ nội dung bài viết sinh viên (ví dụ: `buoi 3`, `b3`, `lab 2`...).
+  - `keywords`: Danh sách từ khóa nhận diện số buổi từ nội dung bài viết sinh viên (ví dụ: `buoi 3`, `b3`, `lab 2`...). Thứ tự trong mảng được giữ nguyên khi so khớp Regex (nên đặt các từ khóa dài lên trước và tiền tố ngắn như `"b"` ở cuối).
   - `overrides`: Bản đồ gán cứng số buổi theo Post ID (`{ "<postId>": <sessionNumber> }`). Bài viết được ghi đè ở đây sẽ tự động hóa giải cảnh báo xung đột buổi và tải đúng thư mục buổi trên Google Drive.
 - **Tác động khi chạy lại sync:**
   Hệ thống sẽ cập nhật trạng thái các bài bị ignore thành `skipProcessing: true` kèm lý do `skipReason: "IGNORED_UID: ..."` trong `thread.json`, đồng thời bỏ qua toàn bộ việc tải ảnh, tải file Google Drive và trích xuất CAD cho những bài này. Các bài có trong `session.overrides` sẽ được áp dụng số buổi chuẩn ngay từ đầu.
