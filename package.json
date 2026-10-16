@@ -28,7 +28,7 @@
     "adm-zip": "^0.6.1",
     "cfb": "^1.2.2",
     "cheerio": "^1.2.0",
-    "commander": "^13.1.0",
+    "commander": "^15.0.0",
     "fast-xml-parser": "^5.11.2",
     "picocolors": "^1.1.1"
   },
